@@ -28,7 +28,7 @@ import { RenderDataWorkerPool } from "./worker/RenderDataWorkerPool";
 
 const DEFAULT_RENDER_DISTANCE = isWallpaperEngine ? 512 : 128;
 
-const CACHED_MAP_IMAGE_PREFIX = "/map-images/";
+const CACHED_MAP_IMAGE_PREFIX = `${process.env.PUBLIC_URL || ""}/map-images/`;
 
 export class MapViewer {
     inputManager: InputManager = new InputManager();

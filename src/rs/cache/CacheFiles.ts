@@ -142,7 +142,16 @@ export class CacheFiles {
         const indexCount = metaFile.data.byteLength / SectorCluster.SIZE;
 
         if (indicesToLoad.length === 0) {
-            indicesToLoad = Array.from({ length: indexCount }, (_, i) => i);
+            const metadata = new Uint8Array(metaFile.data);
+            // Empty reference-table entries have no index file in the disk cache.
+            indicesToLoad = Array.from({ length: indexCount }, (_, i) => i).filter((i) => {
+                const offset = i * SectorCluster.SIZE;
+                return (
+                    metadata[offset] !== 0 ||
+                    metadata[offset + 1] !== 0 ||
+                    metadata[offset + 2] !== 0
+                );
+            });
         }
 
         const indexPromises = indicesToLoad.map((indexId) =>
@@ -228,7 +237,12 @@ function partsToBuffer(parts: Uint8Array[], shared: boolean): ArrayBuffer {
         totalLength += part.byteLength;
     }
 
-    const sab = shared ? new SharedArrayBuffer(totalLength) : new ArrayBuffer(totalLength);
+    // Static hosts such as GitHub Pages cannot supply the isolation headers for shared memory.
+    // Ordinary buffers remain safe to structured-clone into the read-only cache workers.
+    const sab =
+        shared && typeof SharedArrayBuffer !== "undefined"
+            ? new SharedArrayBuffer(totalLength)
+            : new ArrayBuffer(totalLength);
     const u8 = new Uint8Array(sab);
     let offset = 0;
     for (const buffer of parts) {

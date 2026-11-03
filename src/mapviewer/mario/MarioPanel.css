@@ -1,0 +1,33 @@
+.mario-panel {
+    position: absolute;
+    left: 10px;
+    bottom: 12px;
+    z-index: 3;
+    width: min(300px, calc(100vw - 40px));
+    padding: 12px;
+    border: 1px solid #76664c;
+    border-radius: 6px;
+    background: rgba(24, 28, 32, 0.94);
+    color: #eee;
+    font: 13px/1.45 sans-serif;
+}
+.mario-panel p {
+    margin: 8px 0;
+}
+.mario-panel button {
+    margin-right: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    border: 1px solid #99805b;
+    border-radius: 3px;
+    background: #3b352a;
+    color: #fff;
+}
+.mario-panel button:focus-visible {
+    outline: 2px solid #ffdb83;
+}
+@media (pointer: coarse) {
+    .mario-panel {
+        bottom: 155px;
+    }
+}

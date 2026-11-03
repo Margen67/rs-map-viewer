@@ -15,6 +15,8 @@ import { MapViewer } from "./MapViewer";
 import "./MapViewerContainer.css";
 import { MapViewerControls } from "./MapViewerControls";
 import { MapViewerRenderer } from "./MapViewerRenderer";
+import { MarioPanel } from "./mario/MarioPanel";
+import { WebGLMapViewerRenderer } from "./webgl/WebGLMapViewerRenderer";
 
 interface MapViewerContainerProps {
     mapViewer: MapViewer;
@@ -87,6 +89,7 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
 
     const onMapClicked = useCallback(
         (x: number, y: number) => {
+            if (renderer instanceof WebGLMapViewerRenderer) renderer.mario.stop();
             mapViewer.camera.pos[0] = x;
             mapViewer.camera.pos[2] = y;
             mapViewer.camera.updated = true;
@@ -196,6 +199,7 @@ export function MapViewerContainer({ mapViewer }: MapViewerContainerProps): JSX.
                 </div>
             )}
 
+            {!hideUi && <MarioPanel renderer={renderer} />}
             <RendererCanvas renderer={renderer} />
         </div>
     );

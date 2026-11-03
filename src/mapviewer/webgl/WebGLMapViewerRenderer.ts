@@ -24,6 +24,8 @@ import { isTouchDevice, isWebGL2Supported, pixelRatio } from "../../util/DeviceU
 import { MapViewer } from "../MapViewer";
 import { MapViewerRenderer } from "../MapViewerRenderer";
 import { MapViewerRendererType, WEBGL } from "../MapViewerRenderers";
+import { MarioController } from "../mario/MarioController";
+import { MarioDraw } from "../mario/MarioDraw";
 import { DrawRange, NULL_DRAW_RANGE } from "./DrawRange";
 import { InteractType } from "./InteractType";
 import { Interactions } from "./Interactions";
@@ -83,6 +85,24 @@ function optimizeAssumingFlatsHaveSameFirstAndLastData(gl: WebGL2RenderingContex
 }
 
 export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
+    readonly mario = new MarioController(this.mapViewer.camera, this.mapViewer.inputManager);
+    private marioDraw?: MarioDraw;
+
+    override handleInput(deltaTime: number): void {
+        if (this.mario.active) {
+            if (this.mapViewer.inputManager.isGameplayFocused()) this.handleMouseInput();
+            try {
+                this.mario.update(deltaTime, this.mapManager.mapSquares.values());
+            } catch (error) {
+                this.mario.stop();
+                this.mario.status =
+                    error instanceof Error ? error.message : "Mario stopped unexpectedly.";
+            }
+        } else {
+            super.handleInput(deltaTime);
+        }
+    }
+
     type: MapViewerRendererType = WEBGL;
 
     dataLoader = new SdMapDataLoader();
@@ -331,6 +351,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
     }
 
     override initCache(): void {
+        this.mario.stop();
         super.initCache();
         if (this.app) {
             this.initTextures();
@@ -705,6 +726,8 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
             ),
         );
 
+        this.mapManager.getMap(mapX, mapY)!.marioCollision = mapData.marioCollision;
+        this.mapManager.getMap(mapX, mapY)!.marioCollisionChunks = mapData.marioCollisionChunks;
         this.updateTextureArray(mapData.loadedTextures);
     }
 
@@ -719,6 +742,9 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
     }
 
     clearMaps(): void {
+        this.mario.stop();
+        this.marioDraw?.delete();
+        this.marioDraw = undefined;
         this.mapManager.cleanUp();
         this.mapsToLoad.clear();
     }
@@ -897,6 +923,16 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         const opaqueNpcPassStart = performance.now();
         this.renderOpaqueNpcPass(npcDataTextureIndex, npcDataTexture);
         const opaqueNpcPassTime = performance.now() - opaqueNpcPassStart;
+
+        if (this.marioDraw && this.marioDraw.pixels !== this.mario.texture) {
+            this.marioDraw.delete();
+            this.marioDraw = undefined;
+        }
+        if (this.mario.texture) {
+            this.marioDraw ??= new MarioDraw(this.app, this.mario.texture);
+            this.marioDraw.draw(this.mario, camera.viewProjMatrix);
+            if (this.cullBackFace) this.app.enable(PicoGL.CULL_FACE);
+        }
 
         this.app.enable(PicoGL.BLEND);
         const transparentPassStart = performance.now();

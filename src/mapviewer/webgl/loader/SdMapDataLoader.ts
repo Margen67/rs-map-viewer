@@ -11,6 +11,7 @@ import { LocEntity } from "../../../rs/scene/entity/LocEntity";
 import { TextureLoader } from "../../../rs/texture/TextureLoader";
 import { NpcSpawn, getMapNpcSpawns } from "../../data/npc/NpcSpawn";
 import { ObjSpawn, getMapObjSpawns } from "../../data/obj/ObjSpawn";
+import { buildMarioCollision, indexMarioCollision } from "../../mario/CollisionGeometry";
 import { loadMinimapBlob } from "../../worker/MinimapData";
 import { RenderDataLoader, RenderDataResult } from "../../worker/RenderDataLoader";
 import { WorkerState } from "../../worker/RenderDataWorker";
@@ -619,6 +620,9 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             sceneLocs.locEntities,
         );
 
+        const marioCollision = buildMarioCollision(scene, borderSize, maxLevel, sceneModels);
+        const marioCollisionChunks = indexMarioCollision(marioCollision);
+
         if (loadObjs) {
             const objSpawns = getMapObjSpawns(state.objSpawns, maxLevel, mapX, mapY);
             createObjSceneModels(objModelLoader, sceneModels, scene, borderSize, objSpawns);
@@ -759,6 +763,8 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             ...scene.collisionMaps.map((map) => map.flags.buffer),
             ...Array.from(loadedTextures.values()).map((pixels) => pixels.buffer),
 
+            marioCollision.buffer,
+            ...marioCollisionChunks.map((chunk) => chunk.buffer),
             vertices.buffer,
             indices.buffer,
             heightMapTextureData.buffer,
@@ -803,6 +809,8 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
 
                 minimapBlob,
 
+                marioCollision,
+                marioCollisionChunks,
                 vertices,
                 indices,
 

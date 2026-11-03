@@ -1,0 +1,71 @@
+name: Deploy GitHub Pages
+
+on:
+    push:
+        branches: [master, feature/libsm64]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: github-pages
+    cancel-in-progress: false
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: read
+            pages: read
+        steps:
+            - uses: actions/checkout@v4
+            - name: Install Yarn Classic
+              run: npm install --global yarn@1.22.22
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24.19.0
+                  cache: yarn
+            - name: Configure Pages
+              id: pages
+              uses: actions/configure-pages@v5
+            - name: Install dependencies
+              run: yarn install --frozen-lockfile --non-interactive
+            - name: Check types and tests
+              run: |
+                  yarn tsc --noEmit
+                  yarn test --watchAll=false --runInBand
+                  node scripts/libsm64/smoke.cjs
+            - name: Build application
+              run: yarn build
+              env:
+                  PUBLIC_URL: ${{ steps.pages.outputs.base_path }}
+                  # Existing repository ESLint warnings are not deployment errors.
+                  # Type errors and compilation errors still fail the build.
+                  CI: "false"
+            - name: Restore pinned RuneScape cache
+              uses: actions/cache@v4
+              with:
+                  path: .cache/pages/openrs2-1447
+                  key: pages-openrs2-1447-v1
+            - name: Prepare static cache data
+              run: node scripts/prepare-pages.cjs
+            - name: Upload Pages artifact
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: build
+
+    deploy:
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            pages: write
+            id-token: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - name: Deploy
+              id: deployment
+              uses: actions/deploy-pages@v4

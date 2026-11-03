@@ -9,7 +9,7 @@ export function getMousePos(container: HTMLElement, event: MouseEvent | Touch): 
 }
 
 export function getAxisDeadzone(axis: number, zone: number): number {
-    if (Math.abs(axis) < zone) {
+    if (!Number.isFinite(axis) || Math.abs(axis) < zone) {
         return 0;
     } else if (axis < 0) {
         return axis + zone;
@@ -46,7 +46,7 @@ export class InputManager {
     gamepadIndex?: number;
 
     init(element: HTMLElement) {
-        if (!this.element) {
+        if (this.element) {
             this.cleanUp();
         }
         this.element = element;
@@ -98,6 +98,10 @@ export class InputManager {
         this.element.removeEventListener("contextmenu", this.onContextMenu);
 
         this.element.removeEventListener("focusout", this.onFocusOut);
+        this.keys.clear();
+        this.gamepadIndex = undefined;
+        this.resetMouse();
+        this.element = undefined;
     }
 
     isShiftDown(): boolean {
@@ -148,23 +152,35 @@ export class InputManager {
         return 0;
     }
 
+    isGameplayFocused(): boolean {
+        return document.hasFocus() && (document.activeElement === this.element || this.isPointerLock());
+    }
+
     getGamepad(): Gamepad | null {
-        let gamepad: Gamepad | null = null;
-        if (this.gamepadIndex !== undefined) {
-            const gamepads = navigator.getGamepads();
-            if (gamepads) {
-                gamepad = gamepads[this.gamepadIndex];
-            }
+        if (typeof navigator.getGamepads !== "function") return null;
+        try {
+            // Poll as well as listening for events: a pad may predate renderer initialization.
+            const pads = navigator.getGamepads();
+            const current = this.gamepadIndex === undefined ? null : pads[this.gamepadIndex];
+            const pad =
+                current?.connected && current.mapping === "standard"
+                    ? current
+                    : Array.from(pads).find((p) => p?.connected && p.mapping === "standard") ??
+                      null;
+            this.gamepadIndex = pad?.index;
+            return pad;
+        } catch {
+            // Browsers may deny the Gamepad API via permissions policy.
+            return null;
         }
-        return gamepad;
     }
 
     private onGamepadConnected = (event: GamepadEvent) => {
-        this.gamepadIndex = event.gamepad.index;
+        if (event.gamepad.mapping === "standard") this.gamepadIndex = event.gamepad.index;
     };
 
     private onGamepadDisconnected = (event: GamepadEvent) => {
-        this.gamepadIndex = undefined;
+        if (event.gamepad.index === this.gamepadIndex) this.gamepadIndex = undefined;
     };
 
     private onDoubleClick = (event: MouseEvent) => {

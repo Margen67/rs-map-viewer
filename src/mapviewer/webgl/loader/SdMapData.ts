@@ -22,6 +22,9 @@ export type SdMapData = {
 
     minimapBlob: Blob;
 
+    marioCollision: Int32Array;
+    marioCollisionChunks: Uint32Array[];
+
     vertices: Uint8Array;
     indices: Int32Array;
 

@@ -41,6 +41,9 @@ export type DrawCallRange = {
 export class WebGLMapSquare {
     readonly id: number;
 
+    marioCollision!: Int32Array;
+    marioCollisionChunks!: Uint32Array[];
+
     npcDataTextureOffsets: number[];
 
     static load(

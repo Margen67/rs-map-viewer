@@ -41,6 +41,7 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
+    "build-libsm64": "bash scripts/build-libsm64.sh",
     "test": "craco test",
     "lint": "prettier --write \"./**/*.{js,ts,jsx,tsx,css,md}\"",
     "prepare": "husky install",
