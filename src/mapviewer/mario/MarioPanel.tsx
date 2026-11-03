@@ -21,6 +21,36 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
             ) : (
                 <>
                     <p role="status">{mario.status}</p>
+                    <label className="mario-slider">
+                        Mario size: {mario.size.toFixed(2)}×
+                        <input
+                            aria-label="Mario size"
+                            type="range"
+                            min="0.5"
+                            max="3"
+                            step="0.05"
+                            value={mario.size}
+                            onChange={(e) => {
+                                mario.setSize(Number(e.target.value));
+                                refresh((n) => n + 1);
+                            }}
+                        />
+                    </label>
+                    <label className="mario-slider">
+                        Sound volume: {Math.round(mario.volume * 100)}%
+                        <input
+                            aria-label="Sound volume"
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={Math.round(mario.volume * 100)}
+                            onChange={(e) => {
+                                mario.setVolume(Number(e.target.value) / 100);
+                                refresh((n) => n + 1);
+                            }}
+                        />
+                    </label>
                     <input
                         ref={fileInput}
                         aria-label="Super Mario 64 US ROM"

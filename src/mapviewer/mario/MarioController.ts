@@ -5,7 +5,9 @@ import { InputManager, getAxisDeadzone } from "../InputManager";
 import { CollisionSquare, collectMarioSurfaces } from "./CollisionGeometry";
 import { LibSM64, createLibSM64, validateMarioRom } from "./LibSM64";
 import { MarioAudio } from "./MarioAudio";
-import { MARIO_SIZE_MULTIPLIER, MARIO_UNITS_PER_TILE as SCALE } from "./MarioScale";
+import { MarioCombat, MarioNpcTarget } from "./MarioCombat";
+import { MarioParticles } from "./MarioParticles";
+import { MARIO_SIZE_MULTIPLIER } from "./MarioScale";
 
 const STEP = 1000 / 30;
 
@@ -13,6 +15,33 @@ export class MarioController {
     module?: LibSM64;
     texture?: Uint8Array;
     audio?: MarioAudio;
+    effectTexture?: Uint8Array;
+    readonly particles = new MarioParticles();
+    readonly combat = new MarioCombat(this.particles);
+    size = MARIO_SIZE_MULTIPLIER;
+    volume = 0.7;
+
+    get unitsPerTile(): number {
+        return 256 / this.size;
+    }
+
+    setSize(value: number): void {
+        const previous = this.unitsPerTile;
+        this.size = clamp(value, 0.5, 3);
+        this.spawnHeight = (this.spawnHeight / previous) * this.unitsPerTile;
+        this.collisionX = this.collisionZ = Infinity;
+        if (this.spawned)
+            this.module?._rs64_move(
+                (this.position[0] - this.originX) * this.unitsPerTile,
+                -this.position[1] * this.unitsPerTile,
+                (this.position[2] - this.originZ) * this.unitsPerTile,
+            );
+    }
+
+    setVolume(value: number): void {
+        this.volume = clamp(value, 0, 1);
+        this.audio?.setVolume(this.volume);
+    }
     status = "Choose a US SM64 ROM to play as Mario.";
     loading = false;
     spawned = false;
@@ -24,6 +53,7 @@ export class MarioController {
     private collisionX = Infinity;
     private collisionZ = Infinity;
     private collisionMaps: CollisionSquare[] = [];
+    private collisionVersions: (number | undefined)[] = [];
     private spawnHeight = 0;
     private previousProjection?: ProjectionType;
 
@@ -45,6 +75,7 @@ export class MarioController {
         let initialized = false;
         try {
             this.audio = new MarioAudio(() => this.input.isGameplayFocused());
+            this.audio.setVolume(this.volume);
             // Nothing from the file is uploaded, persisted, or included in the build.
             const rom = new Uint8Array(await file.arrayBuffer());
             await validateMarioRom(rom);
@@ -58,6 +89,8 @@ export class MarioController {
                 const texturePointer = module._rs64_init(pointer);
                 initialized = true;
                 this.texture = module.HEAPU8.slice(texturePointer, texturePointer + 704 * 64 * 4);
+                const effects = module._rs64_effects();
+                this.effectTexture = module.HEAPU8.slice(effects, effects + 640 * 32 * 4);
             } finally {
                 module._free(pointer);
             }
@@ -68,7 +101,7 @@ export class MarioController {
             this.position = Array.from(this.camera.pos);
             this.originX = Math.floor(this.position[0] / 32) * 32;
             this.originZ = Math.floor(this.position[2] / 32) * 32;
-            this.spawnHeight = -this.position[1] * SCALE;
+            this.spawnHeight = -this.position[1] * this.unitsPerTile;
             this.status = "Waiting for map collision…";
             this.input.element?.focus();
         } catch (error) {
@@ -78,6 +111,7 @@ export class MarioController {
                 this.audio = undefined;
                 this.module = undefined;
                 this.texture = undefined;
+                this.effectTexture = undefined;
                 this.status = error instanceof Error ? error.message : "Could not load Mario.";
             }
         } finally {
@@ -92,11 +126,15 @@ export class MarioController {
         this.module?._rs64_terminate();
         this.module = undefined;
         this.texture = undefined;
+        this.effectTexture = undefined;
+        this.combat.reset();
+        this.particles.clear();
         this.loading = false;
         this.spawned = false;
         this.accumulator = 0;
         this.collisionX = this.collisionZ = Infinity;
         this.collisionMaps = [];
+        this.collisionVersions = [];
         if (this.previousProjection !== undefined) {
             this.camera.setProjectionType(this.previousProjection);
             this.previousProjection = undefined;
@@ -109,10 +147,15 @@ export class MarioController {
         this.spawned = false;
         this.accumulator = 0;
         // Try the nearest floor above the current position after a fall or death.
-        this.spawnHeight = -this.position[1] * SCALE + 2000;
+        this.spawnHeight = -this.position[1] * this.unitsPerTile + 2000;
     }
 
-    update(deltaTime: number, maps: Iterable<CollisionSquare>): void {
+    update(
+        deltaTime: number,
+        maps: Iterable<CollisionSquare>,
+        targets: MarioNpcTarget[] = [],
+    ): void {
+        const SCALE = this.unitsPerTile;
         const m = this.module;
         if (!m) return;
         const nearby = Array.from(maps).filter(
@@ -141,9 +184,21 @@ export class MarioController {
             Math.abs(x - this.collisionX) >= 2 ||
             Math.abs(z - this.collisionZ) >= 2 ||
             nearby.length !== this.collisionMaps.length ||
-            nearby.some((map, i) => map !== this.collisionMaps[i])
+            nearby.some(
+                (map, i) =>
+                    map !== this.collisionMaps[i] ||
+                    map.marioCollisionVersion !== this.collisionVersions[i],
+            )
         ) {
-            const vertices = collectMarioSurfaces(nearby, this.originX, this.originZ, x, z);
+            const vertices = collectMarioSurfaces(
+                nearby,
+                this.originX,
+                this.originZ,
+                x,
+                z,
+                8,
+                SCALE,
+            );
             const pointer = m._malloc(vertices.byteLength);
             if (!pointer) throw new Error("Not enough memory for Mario collision.");
             try {
@@ -162,6 +217,7 @@ export class MarioController {
             this.collisionX = x;
             this.collisionZ = z;
             this.collisionMaps = nearby;
+            this.collisionVersions = nearby.map((map) => map.marioCollisionVersion);
         }
         if (!this.spawned) {
             const sx = (x - this.originX) * SCALE;
@@ -173,6 +229,7 @@ export class MarioController {
                 return;
             }
             this.spawned = true;
+            this.position = [x, -(floor + 30) / SCALE, z];
             this.spawnHeight = floor + 1000;
             this.camera.pitch = -160;
         }
@@ -198,6 +255,12 @@ export class MarioController {
         const yaw = this.camera.yaw * RS_TO_RADIANS;
         this.accumulator += Math.min(deltaTime, 100);
         while (this.accumulator >= STEP) {
+            const statePointer = m._rs64_position() / 4;
+            const previous = [
+                m.HEAPF32[statePointer] / SCALE + this.originX,
+                -m.HEAPF32[statePointer + 1] / SCALE,
+                m.HEAPF32[statePointer + 2] / SCALE + this.originZ,
+            ];
             m._rs64_tick(
                 Math.sin(yaw),
                 Math.cos(yaw),
@@ -207,6 +270,24 @@ export class MarioController {
                 Number(button(0) || key("Space")),
                 Number(button(2) || button(1) || key("KeyX")),
                 Number(button(6) || button(7) || key("ShiftLeft") || key("ShiftRight")),
+            );
+            const current = [
+                m.HEAPF32[statePointer] / SCALE + this.originX,
+                -m.HEAPF32[statePointer + 1] / SCALE,
+                m.HEAPF32[statePointer + 2] / SCALE + this.originZ,
+            ];
+            this.particles.update(STEP / 1000);
+            this.combat.update(STEP / 1000);
+            this.particles.movement(m._rs64_particles(), current, this.size);
+            this.combat.interact(
+                m,
+                targets,
+                previous,
+                current,
+                this.originX,
+                this.originZ,
+                SCALE,
+                this.size,
             );
             this.accumulator -= STEP;
         }
@@ -229,8 +310,7 @@ export class MarioController {
         const distance = 4;
         const pitch = this.camera.pitch * RS_TO_RADIANS;
         this.camera.pos[0] = this.position[0] - Math.sin(yaw) * Math.cos(pitch) * distance;
-        this.camera.pos[1] =
-            this.position[1] - 0.5 * MARIO_SIZE_MULTIPLIER + Math.sin(pitch) * distance;
+        this.camera.pos[1] = this.position[1] - 0.5 * this.size + Math.sin(pitch) * distance;
         this.camera.pos[2] = this.position[2] - Math.cos(yaw) * Math.cos(pitch) * distance;
         this.camera.updated = this.camera.updatedPosition = true;
         this.audio?.play(m);

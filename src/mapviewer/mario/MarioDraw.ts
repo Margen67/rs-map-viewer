@@ -2,7 +2,6 @@ import { mat4 } from "gl-matrix";
 import { App, DrawCall, PicoGL, Program, Texture, VertexArray, VertexBuffer } from "picogl";
 
 import { MarioController } from "./MarioController";
-import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 const vertexShader = `#version 300 es
 precision highp float;
@@ -12,11 +11,12 @@ layout(location=2) in vec3 a_color;
 layout(location=3) in vec2 a_uv;
 uniform mat4 u_viewProj;
 uniform vec2 u_origin;
+uniform float u_unitsPerTile;
 out vec3 v_color;
 out vec3 v_normal;
 out vec2 v_uv;
 void main() {
-    vec3 position = a_position * vec3(1., -1., 1.) / ${MARIO_UNITS_PER_TILE};
+    vec3 position = a_position * vec3(1., -1., 1.) / u_unitsPerTile;
     position.xz += u_origin;
     gl_Position = u_viewProj * vec4(position, 1.);
     v_normal = a_normal * vec3(1., -1., 1.);
@@ -88,6 +88,7 @@ export class MarioDraw {
         this.drawCall
             .uniform("u_viewProj", matrix as Float32Array)
             .uniform("u_origin", new Float32Array([mario.originX, mario.originZ]))
+            .uniform("u_unitsPerTile", mario.unitsPerTile)
             .drawRanges([0, count])
             .draw();
     }

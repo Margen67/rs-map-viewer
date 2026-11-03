@@ -45,9 +45,25 @@ Audio. Use **Enable audio** if the browser requires another click before playbac
 effects. Losing map focus or hiding the tab pauses simulation and queued audio.
 Leaving Mario mode closes the audio context.
 
-Terrain and static map geometry provide collision, and Mario shares the map's
-depth buffer. Animated scenery, NPC interactions, water volumes, and camera-wall
-collision are not implemented. Older caches may be needed when newer revisions
+The **Mario size** slider ranges from 0.5× to 3× (default 1.5×), updating the mesh,
+collision scale, and camera target together. **Sound volume** controls music and
+effects from 0–100%; mute preserves the selected volume.
+
+Ordinary floors use SM64's non-slippery surface class. Collision keeps one
+outward face per triangle and handles slanted walls and thin fences from either
+side. Dust, stomp smoke, sparkles, and poof clouds are extracted from your ROM at
+runtime; no extracted assets are included in the site.
+
+Native attack windows knock nearby NPCs back and poof them with ROM sounds and
+particles. Landing on a head while descending squashes the NPC, bounces Mario,
+and produces stomp smoke followed by a dust poof. NPC body contact blocks
+movement. Reactions pause with Mario and reset when leaving Mario mode or
+reloading the map. RuneScape death animations and effects are not used.
+
+Terrain, static geometry, and solid animated scenery provide collision. Animated
+colliders follow the rendered frame and terrain contour, and Mario shares the
+map's depth buffer. Water volumes and camera-wall collision are not implemented;
+moving platforms do not yet carry Mario automatically. Older caches may be needed when newer revisions
 use opcodes the viewer does not yet support; revision 215 (2023-07-26) was used
 for integration checks.
 
@@ -78,6 +94,17 @@ ROM-backed smoke checks also verified Mario geometry, movement, jumping, and
 sound effects without music. Browser checks with a simulated standard gamepad
 verified movement on a real map, nonzero Web Audio output, mute/music controls,
 and audio-context shutdown. No ROM assets are included in the repository.
+
+The build applies `scripts/libsm64/patch-collision.py` to a generated copy of the
+pinned native collision source to adapt wall classification and contact
+resolution to RuneScape meshes. The upstream source file is left intact.
+ROM effect offsets follow `n64decomp/sm64` asset metadata at
+`9921382a68bb0c865e5e45eb594d9c64db59b1af`. Optional ROM checks exercise slope grip,
+walls from both sides, particle frames, hit sounds, and bounce behavior:
+
+```sh
+node scripts/libsm64/rom-smoke.cjs /path/to/your/US.z64
+```
 
 ## GitHub Pages
 

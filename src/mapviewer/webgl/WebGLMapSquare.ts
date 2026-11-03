@@ -16,6 +16,7 @@ import { getMapSquareId } from "../../rs/map/MapFileIndex";
 import { CollisionFlag } from "../../rs/pathfinder/flag/CollisionFlag";
 import { CollisionMap } from "../../rs/scene/CollisionMap";
 import { Scene } from "../../rs/scene/Scene";
+import { animatedMarioCollision } from "../mario/AnimatedCollision";
 import { DrawRange, newDrawRange } from "./DrawRange";
 import { SdMapData } from "./loader/SdMapData";
 import { LocAnimated } from "./loc/LocAnimated";
@@ -43,6 +44,64 @@ export class WebGLMapSquare {
 
     marioCollision!: Int32Array;
     marioCollisionChunks!: Uint32Array[];
+    heightMapData!: Int16Array;
+    marioAnimatedCollision = new Int32Array(0);
+    marioCollisionVersion = 0;
+    private marioAnimationKey = "";
+
+    updateMarioAnimatedCollision(worldX: number, worldZ: number): void {
+        if (!this.locsAnimated.some((loc) => loc.marioCollisionInfo)) return;
+        const x = worldX - this.mapX * 64,
+            z = worldZ - this.mapY * 64;
+        const nearby = this.locsAnimated.filter(
+            (loc) =>
+                loc.marioCollisionInfo &&
+                Math.abs(loc.marioCollisionInfo.sceneX / 128 - x) <= 12 &&
+                Math.abs(loc.marioCollisionInfo.sceneZ / 128 - z) <= 12,
+        );
+        const key =
+            `${Math.floor(x)},${Math.floor(z)}:` +
+            nearby
+                .map(
+                    (loc) =>
+                        `${loc.marioCollisionInfo!.sceneX},${loc.marioCollisionInfo!.sceneZ}:${
+                            loc.frame | 0
+                        }`,
+                )
+                .join(";");
+        if (key === this.marioAnimationKey) return;
+        this.marioAnimationKey = key;
+        const next = animatedMarioCollision(
+            nearby,
+            x,
+            z,
+            (level, sx, sz) => this.sampleHeight(level, sx, sz) * 128,
+        );
+        if (
+            next.length === this.marioAnimatedCollision.length &&
+            next.every((v, i) => v === this.marioAnimatedCollision[i])
+        )
+            return;
+        this.marioAnimatedCollision = next;
+        this.marioCollisionVersion++;
+    }
+
+    sampleHeight(level: number, x: number, z: number): number {
+        const width = 64 + this.borderSize * 2;
+        const tx = Math.floor(x / 128),
+            tz = Math.floor(z / 128);
+        const sample = (sx: number, sz: number) => {
+            sx = Math.max(0, Math.min(width - 1, sx + this.borderSize));
+            sz = Math.max(0, Math.min(width - 1, sz + this.borderSize));
+            return -this.heightMapData[level * width * width + sz * width + sx] / 16;
+        };
+        const fx = x / 128 - tx,
+            fz = z / 128 - tz;
+        return (
+            (sample(tx, tz) * (1 - fx) + sample(tx + 1, tz) * fx) * (1 - fz) +
+            (sample(tx, tz + 1) * (1 - fx) + sample(tx + 1, tz + 1) * fx) * fz
+        );
+    }
 
     npcDataTextureOffsets: number[];
 
@@ -210,6 +269,7 @@ export class WebGLMapSquare {
                     seqType,
                     cycle,
                     loc.randomStart,
+                    loc.marioCollisionInfo,
                 ),
             );
         }
@@ -228,6 +288,8 @@ export class WebGLMapSquare {
                     npcType,
                     npcType.getIdleSeqId(basTypeLoader),
                     npcType.getWalkSeqId(basTypeLoader),
+                    npc.height,
+                    npc.radius,
                 ),
             );
         }
@@ -364,6 +426,14 @@ export class WebGLMapSquare {
 
     getTileRenderFlag(level: number, tileX: number, tileY: number): number {
         return this.tileRenderFlags[level][tileX + this.borderSize][tileY + this.borderSize];
+    }
+
+    getNpcGround(npc: Npc): number {
+        let level = npc.level;
+        const tx = Math.floor(npc.x / 128),
+            tz = Math.floor(npc.y / 128);
+        if (level < 3 && this.getTileRenderFlag(1, tx, tz) & 2) level++;
+        return this.sampleHeight(level, npc.x, npc.y);
     }
 
     getMapDistance(mapX: number, mapY: number): number {

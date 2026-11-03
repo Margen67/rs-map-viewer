@@ -10,28 +10,64 @@ export function buildMarioCollision(
     models: SceneModel[],
 ): Int32Array {
     const vertices: number[] = [];
+    const seen = new Set<string>();
     const offset = border * 128;
     const add = (a: number[], b: number[], c: number[]) => {
-        // Both sides: upper floors also act as ceilings, and thin walls are solid.
-        vertices.push(...a, ...b, ...c, ...c, ...b, ...a);
+        const ab = b.map((v, i) => v - a[i]);
+        const ac = c.map((v, i) => v - a[i]);
+        if (
+            Math.hypot(
+                ab[1] * ac[2] - ab[2] * ac[1],
+                ab[2] * ac[0] - ab[0] * ac[2],
+                ab[0] * ac[1] - ab[1] * ac[0],
+            ) < 1
+        )
+            return;
+        const key = [a.join(","), b.join(","), c.join(",")].sort().join(";");
+        if (seen.has(key)) return;
+        seen.add(key);
+        // Preserve the outward mesh winding: reversed coincident faces fight each other.
+        vertices.push(...a, ...b, ...c);
     };
-    for (let level = 0; level <= maxLevel && level < scene.levels; level++) {
+    for (let level = 0; level < scene.levels; level++) {
         for (let x = border; x < border + 64; x++) {
             for (let z = border; z < border + 64; z++) {
-                const tile = scene.tiles[level][x][z]?.tileModel;
+                const sceneTile = scene.tiles[level][x][z];
+                if (!sceneTile || sceneTile.minLevel > maxLevel) continue;
+                const tile = sceneTile.tileModel;
                 for (const face of tile?.faces ?? []) {
                     const [a, b, c] = face.vertices.map((v) => [v.x - offset, v.y, v.z - offset]);
-                    add(a, b, c);
+                    const normalY = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+                    if (normalY > 0) add(c, b, a);
+                    else add(a, b, c);
                 }
             }
         }
     }
     for (const entry of models) {
-        if (entry.level > maxLevel) continue;
+        // Scene models are already visibility-filtered, including upper-plane bridges.
         const model = entry.model;
         const ys = model.contourVerticesY ?? model.verticesY;
         const vertex = (i: number) => {
-            const height = entry.contourGround === ContourGroundType.NONE ? 0 : entry.sceneHeight;
+            let height =
+                entry.contourGround === ContourGroundType.NONE
+                    ? -entry.heightOffset
+                    : entry.sceneHeight;
+            // Instanced models without pre-contoured vertices follow the same bilinear height as the shader.
+            if (!model.contourVerticesY && entry.contourGround === ContourGroundType.VERTEX) {
+                const x = (model.verticesX[i] + entry.sceneX) / 128 + border;
+                const z = (model.verticesZ[i] + entry.sceneZ) / 128 + border;
+                const tx = Math.floor(x),
+                    tz = Math.floor(z),
+                    fx = x - tx,
+                    fz = z - tz;
+                const map = scene.tileHeights[entry.level];
+                if (map[tx]?.[tz] !== undefined && map[tx + 1]?.[tz + 1] !== undefined) {
+                    height =
+                        (map[tx][tz] * (1 - fx) + map[tx + 1][tz] * fx) * (1 - fz) +
+                        (map[tx][tz + 1] * (1 - fx) + map[tx + 1][tz + 1] * fx) * fz;
+                }
+            }
             return [
                 model.verticesX[i] + entry.sceneX,
                 ys[i] + height,
@@ -51,6 +87,8 @@ export interface CollisionSquare {
     mapY: number;
     marioCollision: Int32Array;
     marioCollisionChunks?: Uint32Array[];
+    marioAnimatedCollision?: Int32Array;
+    marioCollisionVersion?: number;
 }
 
 /** Index triangle offsets by 8×8-tile cells in the worker, including overlapping triangles. */
@@ -95,6 +133,12 @@ function* collisionOffsets(
         }
 }
 
+function* collisionTriangles(map: CollisionSquare): Iterable<[Int32Array, number]> {
+    // Static geometry is spatially indexed; the selected animated frames are already nearby.
+    for (let i = 0; i < (map.marioAnimatedCollision?.length ?? 0); i += 9)
+        yield [map.marioAnimatedCollision!, i];
+}
+
 /** Keep collision local to Mario to avoid SM64's position limits and scanning an entire world. */
 export function collectMarioSurfaces(
     maps: Iterable<CollisionSquare>,
@@ -103,6 +147,7 @@ export function collectMarioSurfaces(
     x: number,
     z: number,
     radius = 8,
+    unitsPerTile = MARIO_UNITS_PER_TILE,
 ): Int32Array {
     const result: number[] = [];
     for (const map of maps) {
@@ -115,8 +160,11 @@ export function collectMarioSurfaces(
             baseZ + 64 < z - radius
         )
             continue;
-        const src = map.marioCollision;
-        for (const i of collisionOffsets(map, x, z, radius)) {
+        function* triangles(): Iterable<[Int32Array, number]> {
+            for (const i of collisionOffsets(map, x, z, radius)) yield [map.marioCollision, i];
+            yield* collisionTriangles(map);
+        }
+        for (const [src, i] of triangles()) {
             const xs = [src[i] / 128 + baseX, src[i + 3] / 128 + baseX, src[i + 6] / 128 + baseX];
             const zs = [
                 src[i + 2] / 128 + baseZ,
@@ -133,9 +181,9 @@ export function collectMarioSurfaces(
             // Reflect Y and reverse winding to preserve the source surface normals.
             for (const v of [2, 1, 0]) {
                 result.push(
-                    Math.round((xs[v] - originX) * MARIO_UNITS_PER_TILE),
-                    Math.round((-src[i + v * 3 + 1] / 128) * MARIO_UNITS_PER_TILE),
-                    Math.round((zs[v] - originZ) * MARIO_UNITS_PER_TILE),
+                    Math.round((xs[v] - originX) * unitsPerTile),
+                    Math.round((-src[i + v * 3 + 1] / 128) * unitsPerTile),
+                    Math.round((zs[v] - originZ) * unitsPerTile),
                 );
             }
         }

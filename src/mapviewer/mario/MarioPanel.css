@@ -31,3 +31,16 @@
         bottom: 155px;
     }
 }
+
+.mario-panel {
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+.mario-slider {
+    display: block;
+    margin: 8px 0;
+}
+.mario-slider input {
+    display: block;
+    width: 100%;
+}

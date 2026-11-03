@@ -58,7 +58,10 @@ test("queues 32kHz stereo PCM, mutes, and cancels queued audio on pause and disp
         jest.advanceTimersByTime(20);
         expect(buffers.length).toBeGreaterThan(2); // Audio advances without a render frame.
         audio.setMuted(true);
-        expect(gain.gain.setValueAtTime).toHaveBeenCalledWith(0, 1.1);
+        expect(gain.gain.value).toBe(0);
+        audio.setVolume(0.25);
+        audio.setMuted(false);
+        expect(gain.gain.value).toBe(0.25);
         audio.setMusic(false, module);
         expect(module._rs64_music).toHaveBeenCalledWith(0);
         audio.pause();

@@ -1,6 +1,11 @@
 #include "libsm64.h"
 #include <stdlib.h>
 #include <string.h>
+#include "decomp/include/surface_terrains.h"
+#include "decomp/include/sm64.h"
+#include "decomp/include/audio_defines.h"
+#include "decomp/tools/libmio0.h"
+#include "decomp/global_state.h"
 
 /* Keep the C ABI (struct layout and padding) on the C side of the WASM boundary. */
 static uint8_t texture[SM64_TEXTURE_WIDTH * SM64_TEXTURE_HEIGHT * 4];
@@ -12,10 +17,43 @@ static struct SM64MarioGeometryBuffers geometry = {positions, normals, colors, u
 static struct SM64MarioState state;
 static int32_t mario = -1;
 static int16_t audio[544 * 2 * 2];
+static uint8_t effects[640 * 32 * 4];
+
+/* US ROM offsets from n64decomp/sm64 assets.json. No extracted assets are shipped. */
+static void load_effects(const uint8_t *rom) {
+    const uint32_t segments[] = {1132368, 2102288};
+    for (int segment = 0; segment < 2; ++segment) {
+        mio0_header_t header;
+        mio0_decode_header(rom + segments[segment], &header);
+        uint8_t *data = malloc(header.dest_size);
+        mio0_decode(rom + segments[segment], data, NULL);
+        for (int frame = segment ? 19 : 0; frame < (segment ? 20 : 19); ++frame) {
+            int rgba = frame >= 13 && frame < 19;
+            uint32_t offset = frame < 7 ? 122528 + frame * 2048 :
+                frame < 13 ? 139592 + (frame - 7) * 2048 :
+                frame < 19 ? 160912 + (frame - 13) * 2048 : 128;
+            for (int y = 0; y < 32; ++y) for (int x = 0; x < 32; ++x) {
+                const uint8_t *pixel = data + offset + (y * 32 + x) * 2;
+                uint8_t *out = effects + (y * 640 + frame * 32 + x) * 4;
+                if (rgba) {
+                    uint16_t value = (pixel[0] << 8) | pixel[1];
+                    out[0] = ((value >> 11) & 31) * 255 / 31;
+                    out[1] = ((value >> 6) & 31) * 255 / 31;
+                    out[2] = ((value >> 1) & 31) * 255 / 31;
+                    out[3] = (value & 1) ? 255 : 0;
+                } else {
+                    out[0] = out[1] = out[2] = pixel[0]; out[3] = pixel[1];
+                }
+            }
+        }
+        free(data);
+    }
+}
 
 uint8_t *rs64_init(const uint8_t *rom) {
     sm64_global_init(rom, texture);
     sm64_audio_init(rom);
+    load_effects(rom);
     return texture;
 }
 
@@ -39,8 +77,19 @@ void rs64_terminate(void) {
 int rs64_surfaces(const int32_t *vertices, uint32_t count) {
     struct SM64Surface *surfaces = calloc(count, sizeof(*surfaces));
     if (count && !surfaces) return 0;
-    for (uint32_t i = 0; i < count; ++i)
+    for (uint32_t i = 0; i < count; ++i) {
+        surfaces[i].type = SURFACE_NOT_SLIPPERY;
+        surfaces[i].terrain = TERRAIN_GRASS;
         memcpy(surfaces[i].vertices, vertices + i * 9, 9 * sizeof(int32_t));
+    }
+    if (mario >= 0) {
+        /* Streaming/rebasing replaces the native surface allocation. Do not retain contacts into it. */
+        sm64_set_mario_position(mario, state.position[0], state.position[1], state.position[2]);
+        g_state->mgMarioStateVal.floor = NULL;
+        g_state->mgMarioStateVal.ceil = NULL;
+        g_state->mgMarioStateVal.wall = NULL;
+        g_state->mgMarioObject->platform = NULL;
+    }
     sm64_static_surfaces_load(surfaces, count);
     free(surfaces);
     return 1;
@@ -67,14 +116,38 @@ void rs64_tick(float camX, float camZ, float stickX, float stickY, int a, int b,
 }
 
 void rs64_move(float x, float y, float z) {
+    float dx = x - state.position[0], dy = y - state.position[1], dz = z - state.position[2];
     sm64_set_mario_position(mario, x, y, z);
     state.position[0] = x;
     state.position[1] = y;
     state.position[2] = z;
-    geometry.numTrianglesUsed = 0;
+    /* Keep the last pose visible during paused size changes and coordinate rebasing. */
+    for (int i = 0; i < geometry.numTrianglesUsed * 9; i += 3) {
+        positions[i] += dx; positions[i + 1] += dy; positions[i + 2] += dz;
+    }
 }
 
 float *rs64_position(void) { return state.position; }
+float *rs64_velocity(void) { return state.velocity; }
+uint32_t rs64_action(void) { return state.action; }
+uint32_t rs64_particles(void) { return state.particleFlags; }
+uint8_t *rs64_effects(void) { return effects; }
+int rs64_attack(float x, float y, float z, float height) {
+    return sm64_mario_attack(mario, x, y, z, height);
+}
+void rs64_stomp(float x, float y, float z) {
+    rs64_move(x, y + 5, z);
+    state.velocity[1] = 30;
+    sm64_set_mario_action(mario, ACT_JUMP);
+    sm64_set_mario_velocity(mario, state.velocity[0], 30, state.velocity[2]);
+    sm64_play_sound_global(SOUND_ACTION_BOUNCE_OFF_OBJECT);
+}
+void rs64_enemy_sound(void) { sm64_play_sound_global(SOUND_OBJ_DYING_ENEMY1); }
+void rs64_push(float dx, float dz) {
+    float x = state.position[0] + dx, y = state.position[1], z = state.position[2] + dz;
+    sm64_surface_find_wall_collision(&x, &y, &z, 60, 37);
+    rs64_move(x, y, z);
+}
 int rs64_health(void) { return state.health; }
 int rs64_triangles(void) { return geometry.numTrianglesUsed; }
 float *rs64_buffer(int index) {

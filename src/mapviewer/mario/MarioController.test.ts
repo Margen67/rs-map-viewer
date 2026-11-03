@@ -22,13 +22,16 @@ function setup() {
         HEAP32: new Int32Array(heap.buffer),
         _malloc: () => 1024,
         _free: jest.fn(),
-        _rs64_surfaces: () => 1,
+        _rs64_surfaces: jest.fn(() => 1),
         _rs64_floor: () => 0,
         _rs64_spawn: () => 0,
         _rs64_tick: tick,
         _rs64_position: () => 64,
         _rs64_health: () => 0x880,
+        _rs64_particles: () => 0,
+        _rs64_velocity: () => 0,
         _rs64_terminate: jest.fn(),
+        _rs64_move: jest.fn(),
     } as unknown as LibSM64;
     const maps = [{ mapX: 0, mapY: 0, marioCollision: new Int32Array(9) }];
     return { input, canvas, controller, tick, maps };
@@ -96,3 +99,43 @@ test.each([
         input.cleanUp();
     },
 );
+
+test("changing size rescales simulation coordinates while preserving Mario's world position", () => {
+    const { input, controller, maps } = setup();
+    controller.update(34, maps);
+    const before = [...controller.position];
+    controller.setSize(3);
+    expect(controller.unitsPerTile).toBeCloseTo(256 / 3);
+    expect(controller.position).toEqual(before);
+    const args = (controller.module!._rs64_move as jest.Mock).mock.calls[0];
+    expect(args[0] / controller.unitsPerTile).toBeCloseTo(before[0]);
+    expect(-args[1] / controller.unitsPerTile).toBeCloseTo(before[1]);
+    expect(args[2] / controller.unitsPerTile).toBeCloseTo(before[2]);
+    input.cleanUp();
+});
+
+test("animated collision changes refresh native surfaces even when Mario stands still", () => {
+    const { input, controller, maps } = setup();
+    const map = { ...maps[0], marioCollisionVersion: 1 };
+    controller.update(34, [map]);
+    expect(controller.module!._rs64_surfaces).toHaveBeenCalledTimes(1);
+    map.marioCollisionVersion++;
+    controller.update(34, [map]);
+    expect(controller.module!._rs64_surfaces).toHaveBeenCalledTimes(2);
+    controller.update(34, [map]);
+    expect(controller.module!._rs64_surfaces).toHaveBeenCalledTimes(2);
+    input.cleanUp();
+});
+
+test("resizing a paused fresh spawn uses the floor position rather than the loading camera", () => {
+    const { input, canvas, controller, maps } = setup();
+    canvas.blur();
+    controller.update(34, maps);
+    expect(controller.spawned).toBe(true);
+    expect(controller.position[1]).toBeCloseTo(-30 / controller.unitsPerTile);
+    const y = controller.position[1];
+    controller.setSize(2);
+    const args = (controller.module!._rs64_move as jest.Mock).mock.calls[0];
+    expect(-args[1] / controller.unitsPerTile).toBeCloseTo(y);
+    input.cleanUp();
+});

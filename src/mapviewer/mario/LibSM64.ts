@@ -27,6 +27,14 @@ export interface LibSM64 {
     _rs64_audio_buffer(): number;
     _rs64_audio_tick(queuedFrames: number): number;
     _rs64_music(enabled: number): void;
+    _rs64_effects(): number;
+    _rs64_velocity(): number;
+    _rs64_particles(): number;
+    _rs64_action(): number;
+    _rs64_attack(x: number, y: number, z: number, height: number): number;
+    _rs64_stomp(x: number, y: number, z: number): void;
+    _rs64_enemy_sound(): void;
+    _rs64_push(dx: number, dz: number): void;
 }
 
 type Factory = (options: { locateFile: (file: string) => string }) => Promise<LibSM64>;
@@ -37,13 +45,15 @@ declare global {
 }
 
 let loadingScript: Promise<void> | undefined;
+// Keep the native ABI pair together across GitHub Pages/browser caches.
+const RUNTIME_VERSION = "npc-effects-1";
 export async function createLibSM64(): Promise<LibSM64> {
     const base = `${process.env.PUBLIC_URL || ""}/libsm64/`;
     if (!window.createLibSM64) {
         if (!loadingScript) {
             loadingScript = new Promise<void>((resolve, reject) => {
                 const script = document.createElement("script");
-                script.src = base + "libsm64.js";
+                script.src = base + "libsm64.js?v=" + RUNTIME_VERSION;
                 script.onload = () => resolve();
                 script.onerror = () => {
                     script.remove();
@@ -60,7 +70,7 @@ export async function createLibSM64(): Promise<LibSM64> {
         await loadingScript;
     }
     if (!window.createLibSM64) throw new Error("The libsm64 runtime did not load.");
-    return window.createLibSM64({ locateFile: (file) => base + file });
+    return window.createLibSM64({ locateFile: (file) => base + file + "?v=" + RUNTIME_VERSION });
 }
 
 /** Validate before passing any untrusted ROM offsets to the native asset loader. */

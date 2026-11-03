@@ -307,6 +307,7 @@ function addLocAnimationFrames(
     const frames = new Array<DrawRange>(frameCount);
     const framesAlpha = new Array<DrawRange>(frameCount);
     let alphaFrameCount = 0;
+    const marioCollisionFrames: Int32Array[] | undefined = locType.clipType > 0 ? [] : undefined;
     for (let i = 0; i < frameCount; i++) {
         const model = locModelLoader.getModelAnimated(
             locType,
@@ -315,6 +316,25 @@ function addLocAnimationFrames(
             entity.seqId,
             i,
         );
+        if (marioCollisionFrames) {
+            const collision: number[] = [];
+            if (model)
+                for (let f = 0; f < model.faceCount; f++) {
+                    if (model.faceColors3[f] === -2 || (model.faceAlphas?.[f] ?? 0) > 240) continue;
+                    for (const vertex of [
+                        model.indices1[f],
+                        model.indices2[f],
+                        model.indices3[f],
+                    ]) {
+                        collision.push(
+                            model.verticesX[vertex],
+                            model.verticesY[vertex],
+                            model.verticesZ[vertex],
+                        );
+                    }
+                }
+            marioCollisionFrames.push(new Int32Array(collision));
+        }
         if (model) {
             frames[i] = sceneBuf.addModelAnimFrame(model, false);
             framesAlpha[i] = sceneBuf.addModelAnimFrame(model, true);
@@ -329,6 +349,7 @@ function addLocAnimationFrames(
 
     return {
         frames,
+        marioCollisionFrames,
         framesAlpha: alphaFrameCount > 0 ? framesAlpha : undefined,
     };
 }
@@ -538,7 +559,11 @@ function createNpcSpawnGroups(
             continue;
         }
 
+        const hitboxModel = npcModelLoader.getModel(npcType, idleSeqId, 0);
+        hitboxModel?.calculateBoundsCylinder();
         groups.push({
+            height: Math.max(0.2, (hitboxModel?.height ?? 128) / 128),
+            radius: Math.max(0.15, Math.min(npcType.size / 2, (hitboxModel?.xzRadius ?? 64) / 128)),
             idleAnim,
             walkAnim,
             spawns,
@@ -763,6 +788,11 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             ...scene.collisionMaps.map((map) => map.flags.buffer),
             ...Array.from(loadedTextures.values()).map((pixels) => pixels.buffer),
 
+            ...new Set(
+                locsAnimated.flatMap(
+                    (loc) => loc.anim.marioCollisionFrames?.map((frame) => frame.buffer) ?? [],
+                ),
+            ),
             marioCollision.buffer,
             ...marioCollisionChunks.map((chunk) => chunk.buffer),
             vertices.buffer,

@@ -21,6 +21,10 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
         Math.abs(m._rs64_floor(0, 200, 0) - 50) < 0.001,
         "sloped floor after collision replacement",
     );
+    surfaces([
+        -500, 0, 300, 500, 300, 400, 500, 0, 300, -500, 0, 300, -500, 300, 400, 500, 300, 400,
+    ]);
+    assert.ok(m._rs64_floor(0, 200, 350) < -10000, "a steep slanted wall is not a walkable floor");
     m._rs64_terminate();
     console.log(
         "libsm64 WASM: flat floor, missing floor, sloped floor, replacement and teardown passed.",

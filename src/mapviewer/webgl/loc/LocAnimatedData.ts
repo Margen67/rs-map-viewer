@@ -1,3 +1,4 @@
+import { AnimatedCollisionInfo } from "../../mario/AnimatedCollision";
 import { AnimationFrames } from "../AnimationFrames";
 
 export type LocAnimatedData = {
@@ -17,4 +18,5 @@ export type LocAnimatedData = {
 
     seqId: number;
     randomStart: boolean;
+    marioCollisionInfo?: AnimatedCollisionInfo;
 };

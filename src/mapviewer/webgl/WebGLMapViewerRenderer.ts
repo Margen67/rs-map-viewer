@@ -24,8 +24,10 @@ import { isTouchDevice, isWebGL2Supported, pixelRatio } from "../../util/DeviceU
 import { MapViewer } from "../MapViewer";
 import { MapViewerRenderer } from "../MapViewerRenderer";
 import { MapViewerRendererType, WEBGL } from "../MapViewerRenderers";
+import { MarioNpcTarget } from "../mario/MarioCombat";
 import { MarioController } from "../mario/MarioController";
 import { MarioDraw } from "../mario/MarioDraw";
+import { MarioParticleDraw } from "../mario/MarioParticleDraw";
 import { DrawRange, NULL_DRAW_RANGE } from "./DrawRange";
 import { InteractType } from "./InteractType";
 import { Interactions } from "./Interactions";
@@ -87,12 +89,30 @@ function optimizeAssumingFlatsHaveSameFirstAndLastData(gl: WebGL2RenderingContex
 export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
     readonly mario = new MarioController(this.mapViewer.camera, this.mapViewer.inputManager);
     private marioDraw?: MarioDraw;
+    private particleDraw?: MarioParticleDraw;
 
     override handleInput(deltaTime: number): void {
         if (this.mario.active) {
             if (this.mapViewer.inputManager.isGameplayFocused()) this.handleMouseInput();
             try {
-                this.mario.update(deltaTime, this.mapManager.mapSquares.values());
+                const targets: MarioNpcTarget[] = [];
+                for (const map of this.mapManager.mapSquares.values())
+                    for (const npc of map.npcs) {
+                        const x = map.mapX * 64 + npc.x / 128,
+                            z = map.mapY * 64 + npc.y / 128;
+                        if (
+                            Math.hypot(x - this.mario.position[0], z - this.mario.position[2]) <=
+                            npc.hitboxRadius + 2 * this.mario.size
+                        ) {
+                            targets.push({
+                                npc,
+                                position: [x, map.getNpcGround(npc), z],
+                                radius: npc.hitboxRadius,
+                                height: npc.hitboxHeight,
+                            });
+                        }
+                    }
+                this.mario.update(deltaTime, this.mapManager.mapSquares.values(), targets);
             } catch (error) {
                 this.mario.stop();
                 this.mario.status =
@@ -726,6 +746,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
             ),
         );
 
+        this.mapManager.getMap(mapX, mapY)!.heightMapData = mapData.heightMapTextureData;
         this.mapManager.getMap(mapX, mapY)!.marioCollision = mapData.marioCollision;
         this.mapManager.getMap(mapX, mapY)!.marioCollisionChunks = mapData.marioCollisionChunks;
         this.updateTextureArray(mapData.loadedTextures);
@@ -745,6 +766,8 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         this.mario.stop();
         this.marioDraw?.delete();
         this.marioDraw = undefined;
+        this.particleDraw?.delete();
+        this.particleDraw = undefined;
         this.mapManager.cleanUp();
         this.mapsToLoad.clear();
     }
@@ -857,6 +880,18 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         const inputManager = this.mapViewer.inputManager;
         const camera = this.mapViewer.camera;
 
+        if (this.mario.active) {
+            for (const map of this.mapManager.mapSquares.values()) {
+                if (
+                    Math.abs(map.mapX * 64 + 32 - this.mario.position[0]) > 80 ||
+                    Math.abs(map.mapY * 64 + 32 - this.mario.position[2]) > 80
+                )
+                    continue;
+                for (const loc of map.locsAnimated)
+                    loc.update(this.mapViewer.seqFrameLoader, timeSec / 0.02);
+                map.updateMarioAnimatedCollision(this.mario.position[0], this.mario.position[2]);
+            }
+        }
         this.handleInput(deltaTime);
 
         camera.update(this.app.width, this.app.height);
@@ -941,6 +976,14 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         const transparentNpcPassStart = performance.now();
         this.renderTransparentNpcPass(npcDataTextureIndex, npcDataTexture);
         const transparentNpcPassTime = performance.now() - transparentNpcPassStart;
+        if (this.particleDraw && this.particleDraw.pixels !== this.mario.effectTexture) {
+            this.particleDraw.delete();
+            this.particleDraw = undefined;
+        }
+        if (this.mario.effectTexture) {
+            this.particleDraw ??= new MarioParticleDraw(this.app, this.mario.effectTexture);
+            this.particleDraw.draw(this.mario.particles, camera);
+        }
 
         // Can't sample from renderbuffer so blit to a texture for sampling.
         this.app.readFramebuffer(this.framebuffer);
@@ -1059,12 +1102,14 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
 
             for (let t = 0; t < ticksElapsed; t++) {
                 for (const npc of map.npcs) {
+                    if (npc.marioReaction) continue;
                     npc.updateServerMovement(pathfinder, map.borderSize, map.collisionMaps);
                 }
             }
 
             for (let t = 0; t < clientTicksElapsed; t++) {
                 for (const npc of map.npcs) {
+                    if (npc.marioReaction) continue;
                     npc.updateMovement(seqTypeLoader, seqFrameLoader);
                 }
             }
@@ -1087,14 +1132,14 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
 
         const newCount = this.npcRenderCount + npcs.length;
 
-        if (this.npcRenderData.length / 4 < newCount) {
+        if (this.npcRenderData.length / 8 < newCount) {
             const newData = new Uint16Array(Math.ceil((newCount * 2) / 16) * 16 * 4);
             newData.set(this.npcRenderData);
             this.npcRenderData = newData;
         }
 
         for (const npc of npcs) {
-            let offset = this.npcRenderCount * 4;
+            let offset = this.npcRenderCount * 8;
 
             const tileX = npc.x >> 7;
             const tileY = npc.y >> 7;
@@ -1104,10 +1149,23 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                 renderPlane++;
             }
 
-            this.npcRenderData[offset++] = npc.x;
-            this.npcRenderData[offset++] = npc.y;
+            const reaction = npc.marioReaction;
+            this.npcRenderData[offset++] = Math.max(
+                0,
+                Math.min(65535, npc.x + (reaction?.offset[0] ?? 0) * 128),
+            );
+            this.npcRenderData[offset++] = Math.max(
+                0,
+                Math.min(65535, npc.y + (reaction?.offset[2] ?? 0) * 128),
+            );
             this.npcRenderData[offset++] = (npc.rotation << 2) | renderPlane;
             this.npcRenderData[offset++] = npc.npcType.id;
+            this.npcRenderData[offset++] = Math.round(
+                (reaction?.hidden ? 0 : reaction?.scaleY ?? 1) * 65535,
+            );
+            this.npcRenderData[offset++] = Math.round((reaction?.offset[1] ?? 0) * 128) + 32768;
+            this.npcRenderData[offset++] = 0;
+            this.npcRenderData[offset++] = 0;
 
             this.npcRenderCount++;
         }
@@ -1122,7 +1180,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         this.npcDataTextureBuffer[newNpcDataTextureIndex] = this.app.createTexture2D(
             this.npcRenderData,
             16,
-            Math.max(Math.ceil(this.npcRenderCount / 16), 1),
+            Math.max(Math.ceil((this.npcRenderCount * 2) / 16), 1),
             {
                 internalFormat: PicoGL.RGBA16UI,
                 minFilter: PicoGL.NEAREST,

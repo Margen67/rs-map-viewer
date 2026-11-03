@@ -19,9 +19,22 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
         },
     };
     const renderer = Object.assign(Object.create(WebGLMapViewerRenderer.prototype), {
-        mario: { active: true, audio, module: {}, status: "Mario" },
+        mario: {
+            active: true,
+            audio,
+            module: {},
+            status: "Mario",
+            size: 1.5,
+            volume: 0.7,
+            setSize: jest.fn(),
+            setVolume: jest.fn(),
+        },
     }) as MapViewerRenderer;
     render(<MarioPanel renderer={renderer} />);
+    fireEvent.change(screen.getByLabelText("Mario size"), { target: { value: "2" } });
+    expect((renderer as WebGLMapViewerRenderer).mario.setSize).toHaveBeenCalledWith(2);
+    fireEvent.change(screen.getByLabelText("Sound volume"), { target: { value: "35" } });
+    expect((renderer as WebGLMapViewerRenderer).mario.setVolume).toHaveBeenCalledWith(0.35);
     fireEvent.click(screen.getByLabelText("Mute"));
     expect(audio.muted).toBe(true);
     expect(screen.getByLabelText("Mute")).toBeChecked();

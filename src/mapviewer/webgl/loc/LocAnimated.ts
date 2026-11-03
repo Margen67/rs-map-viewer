@@ -1,5 +1,6 @@
 import { SeqType } from "../../../rs/config/seqtype/SeqType";
 import { SeqFrameLoader } from "../../../rs/model/seq/SeqFrameLoader";
+import { AnimatedCollisionInfo } from "../../mario/AnimatedCollision";
 import { AnimationFrames } from "../AnimationFrames";
 
 export class LocAnimated {
@@ -25,6 +26,7 @@ export class LocAnimated {
         seqType: SeqType,
         cycle: number,
         randomStart: boolean,
+        readonly marioCollisionInfo?: AnimatedCollisionInfo,
     ) {
         this.seqType = seqType;
         this.cycleStart = cycle - 1;

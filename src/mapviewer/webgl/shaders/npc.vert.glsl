@@ -54,6 +54,8 @@ struct NpcInfo {
     uint plane;
     uint rotation;
     uint interactId;
+    float scaleY;
+    float offsetY;
 };
 
 ivec2 getDataTexCoordFromIndex(int index) {
@@ -61,10 +63,13 @@ ivec2 getDataTexCoordFromIndex(int index) {
 }
 
 NpcInfo decodeNpcInfo(int offset) {
-    uvec4 data = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex(offset + gl_InstanceID), 0);
+    uvec4 data = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex((offset + gl_InstanceID) * 2), 0);
 
     NpcInfo info;
 
+    uvec4 reaction = texelFetch(u_npcDataTexture, getDataTexCoordFromIndex((offset + gl_InstanceID) * 2 + 1), 0);
+    info.scaleY = float(reaction.r) / 65535.0;
+    info.offsetY = float(int(reaction.g) - 32768);
     info.tilePos = vec2(float(data.r), float(data.g));
     info.plane = data.b & 0x3u;
     info.rotation = data.b >> 2;
@@ -98,6 +103,9 @@ void main() {
 
     NpcInfo npcInfo = decodeNpcInfo(DRAW_ID + u_npcDataOffset);
 
+    if (npcInfo.scaleY < .001) { gl_Position = vec4(2., 2., 2., 1.); return; }
+    vertex.pos.y *= npcInfo.scaleY;
+    vertex.pos.y += npcInfo.offsetY;
     vec4 localPos = vec4(vertex.pos, 1.0) * rotationY(float(npcInfo.rotation) * RS_TO_RADIANS) + vec4(npcInfo.tilePos.x, 0, npcInfo.tilePos.y, 0.0);
 
     localPos.y -= getHeightInterp(npcInfo.tilePos, npcInfo.plane);

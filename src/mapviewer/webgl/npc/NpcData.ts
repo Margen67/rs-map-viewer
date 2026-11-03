@@ -4,6 +4,8 @@ import { NpcSpawnGroup } from "./NpcSpawnGroup";
 
 export type NpcData = {
     id: number;
+    height: number;
+    radius: number;
     tileX: number;
     tileY: number;
     level: number;
@@ -29,6 +31,8 @@ export function createNpcData(group: NpcSpawnGroup, spawn: NpcSpawn): NpcData {
     const level = spawn.level;
     return {
         id: spawn.id,
+        height: group.height,
+        radius: group.radius,
         tileX,
         tileY,
         level,

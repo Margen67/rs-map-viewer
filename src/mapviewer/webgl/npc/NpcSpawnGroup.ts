@@ -5,4 +5,6 @@ export type NpcSpawnGroup = {
     idleAnim: AnimationFrames;
     walkAnim: AnimationFrames | undefined;
     spawns: NpcSpawn[];
+    height: number;
+    radius: number;
 };

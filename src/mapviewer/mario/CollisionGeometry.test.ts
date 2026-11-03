@@ -1,4 +1,8 @@
-import { collectMarioSurfaces, indexMarioCollision } from "./CollisionGeometry";
+import {
+    buildMarioCollision,
+    collectMarioSurfaces,
+    indexMarioCollision,
+} from "./CollisionGeometry";
 import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 test("converts map-local triangles to nearby SM64 coordinates, preserving winding", () => {
@@ -95,4 +99,43 @@ test("spatial indexing keeps overlapping triangles exactly once and matches the 
             triangles(collectMarioSurfaces([map], 0, 0, x, z)),
         );
     }
+});
+
+test("terrain exports one upward surface rather than coincident floor/ceiling pairs", () => {
+    const a = { x: 0, y: 0, z: 0 },
+        b = { x: 128, y: 0, z: 128 },
+        c = { x: 128, y: 0, z: 0 };
+    const tiles = Array.from({ length: 64 }, () => new Array(64));
+    tiles[0][0] = {
+        minLevel: 0,
+        tileModel: { faces: [{ vertices: [a, b, c] }, { vertices: [c, b, a] }] },
+    };
+    const geometry = buildMarioCollision({ levels: 1, tiles: [tiles] } as any, 0, 0, []);
+    expect(geometry.length).toBe(9);
+    const native = collectMarioSurfaces(
+        [{ mapX: 0, mapY: 0, marioCollision: geometry }],
+        0,
+        0,
+        0,
+        0,
+    );
+    const yNormal =
+        (native[5] - native[2]) * (native[6] - native[0]) -
+        (native[3] - native[0]) * (native[8] - native[2]);
+    expect(yNormal).toBeGreaterThan(0);
+});
+
+test("visible upper-plane bridges remain solid when the selected map level is zero", () => {
+    const tiles = Array.from({ length: 2 }, () => Array.from({ length: 64 }, () => new Array(64)));
+    const face = {
+        vertices: [
+            { x: 0, y: -240, z: 0 },
+            { x: 128, y: -240, z: 128 },
+            { x: 128, y: -240, z: 0 },
+        ],
+    };
+    tiles[1][0][0] = { minLevel: 0, tileModel: { faces: [face] } };
+    expect(buildMarioCollision({ levels: 2, tiles } as any, 0, 0, [])).toHaveLength(9);
+    tiles[1][0][0].minLevel = 1;
+    expect(buildMarioCollision({ levels: 2, tiles } as any, 0, 0, [])).toHaveLength(0);
 });

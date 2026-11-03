@@ -7,6 +7,7 @@ import { ExactRouteStrategy } from "../../../rs/pathfinder/RouteStrategy";
 import { CollisionFlag } from "../../../rs/pathfinder/flag/CollisionFlag";
 import { CollisionMap } from "../../../rs/scene/CollisionMap";
 import { clamp } from "../../../util/MathUtil";
+import { NpcReaction } from "../../mario/MarioCombat";
 import { AnimationFrames } from "../AnimationFrames";
 
 export enum MovementType {
@@ -20,6 +21,7 @@ const routeStrategy = new ExactRouteStrategy();
 const DIRECTION_ROTATIONS = [768, 1024, 1280, 512, 1536, 256, 0, 1792];
 
 export class Npc {
+    marioReaction?: NpcReaction;
     rotation: number = 0;
     orientation: number = 0;
 
@@ -50,6 +52,8 @@ export class Npc {
         readonly npcType: NpcType,
         readonly idleSeqId: number,
         readonly walkSeqId: number,
+        readonly hitboxHeight: number = 1,
+        readonly hitboxRadius: number = 0.5,
     ) {
         this.rotation = DIRECTION_ROTATIONS[npcType.spawnDirection];
 

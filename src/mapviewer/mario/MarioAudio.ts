@@ -12,6 +12,7 @@ export class MarioAudio {
     private timer: number;
     muted = false;
     music = true;
+    volume = 0.7;
     error?: string;
 
     constructor(private isFocused: () => boolean = () => document.hasFocus()) {
@@ -43,7 +44,13 @@ export class MarioAudio {
 
     setMuted(muted: boolean): void {
         this.muted = muted;
-        this.gain.gain.setValueAtTime(muted ? 0 : 0.7, this.context.currentTime);
+        // Set the intrinsic gain directly, including while the context is suspended.
+        this.gain.gain.value = muted ? 0 : this.volume;
+    }
+
+    setVolume(volume: number): void {
+        this.volume = Math.max(0, Math.min(1, volume));
+        this.setMuted(this.muted);
     }
 
     setMusic(music: boolean, module: LibSM64): void {
