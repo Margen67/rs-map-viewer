@@ -2,13 +2,10 @@ import { RS_TO_RADIANS } from "../../rs/MathConstants";
 import { clamp } from "../../util/MathUtil";
 import { Camera, ProjectionType } from "../Camera";
 import { InputManager, getAxisDeadzone } from "../InputManager";
-import {
-    CollisionSquare,
-    MARIO_UNITS_PER_TILE as SCALE,
-    collectMarioSurfaces,
-} from "./CollisionGeometry";
+import { CollisionSquare, collectMarioSurfaces } from "./CollisionGeometry";
 import { LibSM64, createLibSM64, validateMarioRom } from "./LibSM64";
 import { MarioAudio } from "./MarioAudio";
+import { MARIO_SIZE_MULTIPLIER, MARIO_UNITS_PER_TILE as SCALE } from "./MarioScale";
 
 const STEP = 1000 / 30;
 
@@ -204,7 +201,8 @@ export class MarioController {
             m._rs64_tick(
                 Math.sin(yaw),
                 Math.cos(yaw),
-                stickX / magnitude,
+                // Match libsm64's horizontal convention to the viewer's camera coordinates.
+                -stickX / magnitude,
                 stickY / magnitude,
                 Number(button(0) || key("Space")),
                 Number(button(2) || button(1) || key("KeyX")),
@@ -231,7 +229,8 @@ export class MarioController {
         const distance = 4;
         const pitch = this.camera.pitch * RS_TO_RADIANS;
         this.camera.pos[0] = this.position[0] - Math.sin(yaw) * Math.cos(pitch) * distance;
-        this.camera.pos[1] = this.position[1] - 0.5 + Math.sin(pitch) * distance;
+        this.camera.pos[1] =
+            this.position[1] - 0.5 * MARIO_SIZE_MULTIPLIER + Math.sin(pitch) * distance;
         this.camera.pos[2] = this.position[2] - Math.cos(yaw) * Math.cos(pitch) * distance;
         this.camera.updated = this.camera.updatedPosition = true;
         this.audio?.play(m);

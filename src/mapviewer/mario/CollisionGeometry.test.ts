@@ -1,4 +1,5 @@
 import { collectMarioSurfaces, indexMarioCollision } from "./CollisionGeometry";
+import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 test("converts map-local triangles to nearby SM64 coordinates, preserving winding", () => {
     const result = collectMarioSurfaces(
@@ -14,7 +15,7 @@ test("converts map-local triangles to nearby SM64 coordinates, preserving windin
         3200,
         3200,
     );
-    expect(Array.from(result)).toEqual([256, 128, 0, 256, 128, 256, 0, 128, 0]);
+    expect(Array.from(result)).toEqual([171, 85, 0, 171, 85, 171, 0, 85, 0]);
 });
 
 test("keeps a triangle crossing the collision window and excludes distant geometry", () => {
@@ -64,9 +65,9 @@ test("origin rebasing changes local coordinates without moving world geometry", 
     const a = collectMarioSurfaces(maps, 32, 32, 64, 64);
     const b = collectMarioSurfaces(maps, 64, 64, 64, 64);
     for (let i = 0; i < a.length; i += 3) {
-        expect(a[i] - b[i]).toBe(32 * 256);
+        expect(Math.abs(a[i] - b[i] - 32 * MARIO_UNITS_PER_TILE)).toBeLessThanOrEqual(1);
         expect(a[i + 1]).toBe(b[i + 1]);
-        expect(a[i + 2] - b[i + 2]).toBe(32 * 256);
+        expect(Math.abs(a[i + 2] - b[i + 2] - 32 * MARIO_UNITS_PER_TILE)).toBeLessThanOrEqual(1);
     }
 });
 

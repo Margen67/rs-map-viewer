@@ -2,6 +2,7 @@ import { Camera } from "../Camera";
 import { InputManager } from "../InputManager";
 import { LibSM64 } from "./LibSM64";
 import { MarioController } from "./MarioController";
+import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 function setup() {
     const input = new InputManager();
@@ -14,7 +15,7 @@ function setup() {
     const controller = new MarioController(camera, input);
     controller.position = [10, -2, 10];
     const heap = new Float32Array(4096);
-    heap.set([2560, 512, 2560], 16);
+    heap.set([10 * MARIO_UNITS_PER_TILE, 2 * MARIO_UNITS_PER_TILE, 10 * MARIO_UNITS_PER_TILE], 16);
     const tick = jest.fn();
     controller.module = {
         HEAPF32: heap,
@@ -48,7 +49,7 @@ test("ticks at 30Hz, maps standard buttons, and normalizes diagonal movement", (
     const args = tick.mock.calls[0];
     expect(args[0]).toBe(0);
     expect(args[1]).toBe(1);
-    expect(args[2]).toBeCloseTo(Math.SQRT1_2);
+    expect(args[2]).toBeCloseTo(-Math.SQRT1_2);
     expect(args[3]).toBeCloseTo(-Math.SQRT1_2);
     expect(args.slice(4)).toEqual([1, 1, 1]);
     controller.update(5000, maps);
@@ -69,8 +70,29 @@ test("pauses when the map loses focus and waits for real collision data", () => 
     input.keys.set("Space", true);
     controller.update(34, maps);
     expect(tick).toHaveBeenCalledTimes(1);
-    expect(tick.mock.calls[0].slice(2)).toEqual([0, -1, 1, 0, 0]);
+    expect(tick.mock.calls[0][2]).toBeCloseTo(0);
+    expect(tick.mock.calls[0].slice(3)).toEqual([-1, 1, 0, 0]);
     controller.stop();
     expect(controller.active).toBe(false);
     input.cleanUp();
 });
+
+test.each([
+    ["right", 1, "KeyD", -1],
+    ["left", -1, "KeyA", 1],
+])(
+    "maps %s on the left stick and keyboard to libsm64's horizontal convention",
+    (_, axis, code, expected) => {
+        const { input, controller, tick, maps } = setup();
+        const getPad = jest
+            .spyOn(input, "getGamepad")
+            .mockReturnValue({ axes: [axis, 0, 0, 0], buttons: [] } as unknown as Gamepad);
+        controller.update(34, maps);
+        expect(tick.mock.calls[0][2]).toBe(expected);
+        getPad.mockReturnValue(null);
+        input.keys.set(code as string, true);
+        controller.update(34, maps);
+        expect(tick.mock.calls[1][2]).toBe(expected);
+        input.cleanUp();
+    },
+);

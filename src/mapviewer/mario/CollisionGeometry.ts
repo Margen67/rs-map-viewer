@@ -1,5 +1,6 @@
 import { Scene } from "../../rs/scene/Scene";
 import { ContourGroundType, SceneModel } from "../webgl/buffer/SceneBuffer";
+import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 /** Map-local RuneScape coordinates, 128 units per tile, Y pointing down. */
 export function buildMarioCollision(
@@ -51,8 +52,6 @@ export interface CollisionSquare {
     marioCollision: Int32Array;
     marioCollisionChunks?: Uint32Array[];
 }
-
-export const MARIO_UNITS_PER_TILE = 256;
 
 /** Index triangle offsets by 8×8-tile cells in the worker, including overlapping triangles. */
 export function indexMarioCollision(vertices: Int32Array): Uint32Array[] {
@@ -135,7 +134,7 @@ export function collectMarioSurfaces(
             for (const v of [2, 1, 0]) {
                 result.push(
                     Math.round((xs[v] - originX) * MARIO_UNITS_PER_TILE),
-                    -src[i + v * 3 + 1] * 2,
+                    Math.round((-src[i + v * 3 + 1] / 128) * MARIO_UNITS_PER_TILE),
                     Math.round((zs[v] - originZ) * MARIO_UNITS_PER_TILE),
                 );
             }

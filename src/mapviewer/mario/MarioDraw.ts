@@ -2,6 +2,7 @@ import { mat4 } from "gl-matrix";
 import { App, DrawCall, PicoGL, Program, Texture, VertexArray, VertexBuffer } from "picogl";
 
 import { MarioController } from "./MarioController";
+import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 const vertexShader = `#version 300 es
 precision highp float;
@@ -15,7 +16,7 @@ out vec3 v_color;
 out vec3 v_normal;
 out vec2 v_uv;
 void main() {
-    vec3 position = a_position * vec3(1., -1., 1.) / 256.;
+    vec3 position = a_position * vec3(1., -1., 1.) / ${MARIO_UNITS_PER_TILE};
     position.xz += u_origin;
     gl_Position = u_viewProj * vec4(position, 1.);
     v_normal = a_normal * vec3(1., -1., 1.);
