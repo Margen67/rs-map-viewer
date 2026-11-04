@@ -50,10 +50,22 @@ effects. Losing map focus or hiding the tab pauses simulation and queued audio.
 Leaving Mario mode closes the audio context. Entering Mario mode selects a
 random SM64 background song.
 
-The **Mario size** slider ranges from 0.5× to 3× (default 1.5×), updating the mesh,
+The **Mario size** slider ranges from 0.5× to 3× (default 1.9×), updating the mesh,
 collision scale, and camera target together. **Mario speed** ranges from 0.25×
-to 3× and adjusts simulation speed, retaining fixed physics steps. **Sound volume** controls music and
+to 3× and scales horizontal movement speed and acceleration on the ground, in the
+air, and while swimming. Physics stays at 30 Hz; gravity, jump height, and action
+timers keep their normal timing. **Sound volume** controls music and
 effects from 0–100%; mute preserves the selected volume.
+
+Enable **Show collision** in Mario controls to overlay the mesh wireframe. Green
+marks floors, orange walls and steep slopes, and purple ceilings. **Show through
+scenery** reveals occluded triangles, including the seabed. In Mario mode this
+uses the exact streamed native mesh and updates with doors and animations; in
+camera mode it previews nearby collision without needing a ROM. This overlay
+covers mesh collision, not NPC combat hitboxes. **Map blocking flags** additionally
+shows RuneScape's blocked tiles in red and wall directions in cyan. These snapshot
+flags are diagnostic only; they do not add physical barriers or change when Mario
+swings a door open.
 
 Ordinary floors use SM64's non-slippery surface class. Collision keeps one
 outward face per triangle and handles slanted walls and thin fences from either
@@ -73,7 +85,7 @@ flags, with no size exclusions or collision generated from pathfinding barriers.
 Only visible mesh faces collide; steep surfaces and scenery have finite bounds.
 Hidden NPCs do not create contact blockers. Vanilla OSRS water textures provide
 native swimming with a finite seabed four tiles below the rendered surface; Mario
-can climb onto the shore. Vanilla lava textures trigger SM64's burn bounce,
+automatically jumps toward a reachable bank while swimming into it. Vanilla lava textures trigger SM64's burn bounce,
 damage, sounds and animation. Unrecognized/custom liquid materials need explicit
 classification. Camera-wall collision is not implemented; moving platforms do
 not yet carry Mario automatically. Older caches may be needed when newer revisions

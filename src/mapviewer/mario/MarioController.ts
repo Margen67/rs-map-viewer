@@ -6,7 +6,7 @@ import { CollisionSquare, collectMarioSurfaces } from "./CollisionGeometry";
 import { LibSM64, createLibSM64, validateMarioRom } from "./LibSM64";
 import { MarioAudio } from "./MarioAudio";
 import { MarioCombat, MarioNpcTarget } from "./MarioCombat";
-import { sampleMarioEnvironment } from "./MarioEnvironment";
+import { SWIM_DEPTH, sampleMarioEnvironment } from "./MarioEnvironment";
 import { MarioParticles } from "./MarioParticles";
 import { MARIO_SIZE_MULTIPLIER } from "./MarioScale";
 
@@ -22,16 +22,23 @@ export class MarioController {
     size = MARIO_SIZE_MULTIPLIER;
     volume = 0.7;
     speed = 1;
+    showCollision = false;
+    showMapCollision = true;
+    collisionThroughScenery = true;
+    collisionVertices = new Int32Array(0);
+    collisionRevision = 0;
     private rom?: Uint8Array;
     get hasRom(): boolean {
         return !!this.rom;
     }
     setSpeed(value: number): void {
         this.speed = clamp(value, 0.25, 3);
+        this.module?._rs64_speed(this.speed);
     }
     onDoorInteract?: () => void;
     private doorHeld = false;
     private waterLevel = -11000;
+    private lastWaterPosition?: number[];
 
     get unitsPerTile(): number {
         return 256 / this.size;
@@ -109,6 +116,7 @@ export class MarioController {
                 module._free(pointer);
             }
             this.module = module;
+            module._rs64_speed(this.speed);
             const songs = [3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 17, 19, 20, 22, 25, 33];
             module._rs64_song(songs[Math.floor(Math.random() * songs.length)]);
             module._rs64_music(1);
@@ -149,6 +157,8 @@ export class MarioController {
         this.spawned = false;
         this.accumulator = 0;
         this.collisionX = this.collisionZ = Infinity;
+        this.collisionVertices = new Int32Array(0);
+        this.collisionRevision++;
         this.collisionMaps = [];
         this.collisionVersions = [];
         if (this.previousProjection !== undefined) {
@@ -157,6 +167,7 @@ export class MarioController {
         }
         this.doorHeld = false;
         this.waterLevel = -11000;
+        this.lastWaterPosition = undefined;
         this.status = this.hasRom
             ? "Ready to play — ROM loaded for this session."
             : "Choose a US SM64 ROM to play as Mario.";
@@ -239,6 +250,8 @@ export class MarioController {
                     -this.position[1] * SCALE,
                     (z - this.originZ) * SCALE,
                 );
+            this.collisionVertices = vertices;
+            this.collisionRevision++;
             this.collisionX = x;
             this.collisionZ = z;
             this.collisionMaps = nearby;
@@ -286,7 +299,7 @@ export class MarioController {
         const door = button(3) || key("KeyE");
         if (door && !this.doorHeld) this.onDoorInteract?.();
         this.doorHeld = door;
-        this.accumulator += Math.min(deltaTime, 100) * this.speed;
+        this.accumulator += Math.min(deltaTime, 100);
         while (this.accumulator >= STEP) {
             const statePointer = m._rs64_position() / 4;
             const previous = [
@@ -300,17 +313,42 @@ export class MarioController {
                 previous[1],
                 previous[2],
             );
-            if (environment.water <= -10000 && this.waterLevel > -10000) {
-                // Climb out onto the actual shore mesh rather than swimming underneath it.
-                const px = (previous[0] - this.originX) * SCALE,
-                    pz = (previous[2] - this.originZ) * SCALE;
-                const shore = m._rs64_floor(px, this.waterLevel * SCALE + 100, pz);
-                if (
-                    shore > -10000 &&
-                    shore >= -previous[1] * SCALE &&
-                    shore <= this.waterLevel * SCALE + 100
-                )
-                    m._rs64_move(px, shore + 5, pz);
+            const swimming = !!(m._rs64_action() & 0x2000);
+            const moveLength = Math.hypot(stickX, stickY);
+            const dx = (stickX * Math.cos(yaw) - stickY * Math.sin(yaw)) / Math.max(1, moveLength);
+            const dz = (-stickX * Math.sin(yaw) - stickY * Math.cos(yaw)) / Math.max(1, moveLength);
+            if (environment.water > -10000) this.lastWaterPosition = [...previous];
+            if (swimming && moveLength > 0.15) {
+                const water = environment.water > -10000 ? environment.water : this.waterLevel;
+                if (water > -10000) {
+                    const velocity = m._rs64_velocity() / 4;
+                    const reach = Math.max(
+                        0.65,
+                        (Math.hypot(m.HEAPF32[velocity], m.HEAPF32[velocity + 2]) * this.speed) /
+                            SCALE +
+                            0.3,
+                    );
+                    const targetX = previous[0] + dx * reach,
+                        targetZ = previous[2] + dz * reach;
+                    const target = sampleMarioEnvironment(nearby, targetX, previous[1], targetZ);
+                    if (target.water <= -10000 && target.lava <= -10000) {
+                        // Stay on the wet side of the bank while initiating a real native jump.
+                        if (environment.water <= -10000 && this.lastWaterPosition) {
+                            environment.water = water;
+                            environment.bottom = water - SWIM_DEPTH;
+                            m._rs64_move(
+                                (this.lastWaterPosition[0] - this.originX) * SCALE,
+                                -previous[1] * SCALE,
+                                (this.lastWaterPosition[2] - this.originZ) * SCALE,
+                            );
+                        }
+                        m._rs64_shore_jump(
+                            (targetX - this.originX) * SCALE,
+                            (targetZ - this.originZ) * SCALE,
+                            water * SCALE,
+                        );
+                    }
+                }
             }
             this.waterLevel = environment.water;
             m._rs64_environment(

@@ -24,6 +24,9 @@ import { isTouchDevice, isWebGL2Supported, pixelRatio } from "../../util/DeviceU
 import { MapViewer } from "../MapViewer";
 import { MapViewerRenderer } from "../MapViewerRenderer";
 import { MapViewerRendererType, WEBGL } from "../MapViewerRenderers";
+import { CollisionDebugDraw } from "../mario/CollisionDebugDraw";
+import { collectMarioSurfaces } from "../mario/CollisionGeometry";
+import { mapCollisionDebugLines } from "../mario/MapCollisionDebug";
 import { MarioNpcTarget } from "../mario/MarioCombat";
 import { MarioController } from "../mario/MarioController";
 import { MarioDraw } from "../mario/MarioDraw";
@@ -91,6 +94,11 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
     readonly mario = new MarioController(this.mapViewer.camera, this.mapViewer.inputManager);
     private marioDraw?: MarioDraw;
     private particleDraw?: MarioParticleDraw;
+    private collisionDebugDraw?: CollisionDebugDraw;
+    private collisionPreviewKey = "";
+    private collisionPreview = new Int32Array(0);
+    private collisionFlagKey = "";
+    private collisionFlagLines?: { positions: Float32Array; colors: Float32Array };
 
     override handleInput(deltaTime: number): void {
         if (this.mario.active) {
@@ -795,6 +803,12 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
 
     clearMaps(): void {
         this.mario.stop();
+        this.collisionDebugDraw?.delete();
+        this.collisionDebugDraw = undefined;
+        this.collisionPreviewKey = "";
+        this.collisionFlagKey = "";
+        this.collisionFlagLines = undefined;
+        this.collisionPreview = new Int32Array(0);
         this.marioDraw?.delete();
         this.marioDraw = undefined;
         this.particleDraw?.delete();
@@ -1014,6 +1028,65 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
         if (this.mario.effectTexture) {
             this.particleDraw ??= new MarioParticleDraw(this.app, this.mario.effectTexture);
             this.particleDraw.draw(this.mario.particles, camera);
+        }
+
+        if (this.mario.showCollision) {
+            this.collisionDebugDraw ??= new CollisionDebugDraw(this.app);
+            let vertices = this.mario.collisionVertices,
+                ox = this.mario.originX,
+                oz = this.mario.originZ;
+            let key = `active:${this.mario.collisionRevision}`;
+            if (!this.mario.active) {
+                const x = camera.pos[0],
+                    z = camera.pos[2];
+                ox = Math.floor(x / 32) * 32;
+                oz = Math.floor(z / 32) * 32;
+                const maps = Array.from(this.mapManager.mapSquares.values());
+                for (const map of maps) map.updateMarioAnimatedCollision(x, z);
+                key =
+                    `preview:${Math.floor(x / 2)},${Math.floor(z / 2)},${ox},${oz},${
+                        this.mario.unitsPerTile
+                    }:` + maps.map((m) => `${m.id}:${m.marioCollisionVersion}`).join(";");
+                if (key !== this.collisionPreviewKey) {
+                    this.collisionPreviewKey = key;
+                    this.collisionPreview = collectMarioSurfaces(
+                        maps,
+                        ox,
+                        oz,
+                        x,
+                        z,
+                        8,
+                        this.mario.unitsPerTile,
+                    );
+                }
+                vertices = this.collisionPreview;
+            }
+            const flagX = this.mario.active ? this.mario.position[0] : camera.pos[0];
+            const flagZ = this.mario.active ? this.mario.position[2] : camera.pos[2];
+            const flagKey = `${key}:flags:${this.mario.showMapCollision}:${
+                this.maxLevel
+            }:${Math.floor(flagX / 2)},${Math.floor(flagZ / 2)}`;
+            if (flagKey !== this.collisionFlagKey) {
+                this.collisionFlagKey = flagKey;
+                this.collisionFlagLines = this.mario.showMapCollision
+                    ? mapCollisionDebugLines(
+                          this.mapManager.mapSquares.values(),
+                          flagX,
+                          flagZ,
+                          this.maxLevel,
+                      )
+                    : undefined;
+            }
+            this.collisionDebugDraw.draw(
+                vertices,
+                flagKey,
+                ox,
+                oz,
+                this.mario.unitsPerTile,
+                camera.viewProjMatrix,
+                this.mario.collisionThroughScenery,
+                this.collisionFlagLines,
+            );
         }
 
         // Can't sample from renderbuffer so blit to a texture for sampling.
@@ -1582,6 +1655,8 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
 
     override async cleanUp(): Promise<void> {
         this.mario.dispose();
+        this.collisionDebugDraw?.delete();
+        this.collisionDebugDraw = undefined;
         super.cleanUp();
         this.mapViewer.workerPool.resetLoader(this.dataLoader);
 

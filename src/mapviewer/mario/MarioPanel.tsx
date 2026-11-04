@@ -66,6 +66,61 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
                             }}
                         />
                     </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            aria-label="Show collision"
+                            checked={mario.showCollision ?? false}
+                            onChange={(e) => {
+                                mario.showCollision = e.target.checked;
+                                refresh((n) => n + 1);
+                            }}
+                        />{" "}
+                        Show collision
+                    </label>
+                    {mario.showCollision && (
+                        <>
+                            <label style={{ display: "block" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={mario.collisionThroughScenery}
+                                    onChange={(e) => {
+                                        mario.collisionThroughScenery = e.target.checked;
+                                        refresh((n) => n + 1);
+                                    }}
+                                />{" "}
+                                Show through scenery
+                            </label>
+                            <label style={{ display: "block" }}>
+                                <input
+                                    type="checkbox"
+                                    aria-label="Map blocking flags"
+                                    checked={mario.showMapCollision ?? true}
+                                    onChange={(e) => {
+                                        mario.showMapCollision = e.target.checked;
+                                        refresh((n) => n + 1);
+                                    }}
+                                />{" "}
+                                Map blocking flags
+                            </label>
+                            <p>
+                                Green: floors · Orange: walls / steep slopes · Purple: ceilings.
+                                <br />
+                                {mario.showMapCollision && (
+                                    <>
+                                        Red: blocked map tiles · Cyan: map wall flags (diagnostic
+                                        only).
+                                        <br />
+                                    </>
+                                )}
+                                {mario.active
+                                    ? `${
+                                          mario.collisionVertices.length / 9
+                                      } streamed collision triangles`
+                                    : "Preview of nearby mesh collision — no ROM needed."}
+                            </p>
+                        </>
+                    )}
                     <input
                         ref={fileInput}
                         aria-label="Super Mario 64 US ROM"

@@ -7,6 +7,7 @@
 #include "decomp/include/audio_defines.h"
 #include "decomp/tools/libmio0.h"
 #include "decomp/global_state.h"
+#include "decomp/engine/surface_collision.h"
 
 /* Keep the C ABI (struct layout and padding) on the C side of the WASM boundary. */
 static uint8_t texture[SM64_TEXTURE_WIDTH * SM64_TEXTURE_HEIGHT * 4];
@@ -18,6 +19,15 @@ static struct SM64MarioGeometryBuffers geometry = {positions, normals, colors, u
 static struct SM64MarioState state;
 static int32_t mario = -1;
 static int song = 3;
+static float movement_scale = 1.0f;
+void rs64_speed(float value) { movement_scale = fminf(3.0f, fmaxf(0.25f, value)); }
+static float shore_clearance = -11000;
+float rs64_movement_scale(void) {
+    /* Rise clear of the bank before moving over its top face; do not snap up through it. */
+    if (mario >= 0 && shore_clearance > -10000 && g_state->mgMarioStateVal.action == ACT_WATER_JUMP
+        && g_state->mgMarioStateVal.pos[1] < shore_clearance + 5 && g_state->mgMarioStateVal.vel[1] >= 0) return 0;
+    return movement_scale;
+}
 static float water_bottom = -11000;
 static int has_water = 0;
 static struct SM64SurfaceCollisionData *burning_floor = NULL;
@@ -94,6 +104,7 @@ void rs64_terminate(void) {
     geometry.numTrianglesUsed = 0;
     burning_floor = NULL;
     has_water = 0;
+    shore_clearance = -11000;
     sm64_global_terminate();
 }
 
@@ -137,6 +148,7 @@ int rs64_spawn(float x, float y, float z) {
 void rs64_tick(float camX, float camZ, float stickX, float stickY, int a, int b, int z) {
     const struct SM64MarioInputs inputs = {camX, camZ, stickX, stickY, a != 0, b != 0, z != 0};
     sm64_mario_tick(mario, &inputs, &state, &geometry);
+    if (state.action != ACT_WATER_JUMP) shore_clearance = -11000;
     if (has_water && state.position[1] < water_bottom + 10) {
         sm64_set_mario_position(mario, state.position[0], water_bottom + 10, state.position[2]);
         state.position[1] = water_bottom + 10;
@@ -170,6 +182,29 @@ void rs64_stomp(float x, float y, float z) {
     sm64_set_mario_action(mario, ACT_JUMP);
     sm64_set_mario_velocity(mario, state.velocity[0], 30, state.velocity[2]);
     sm64_play_sound_global(SOUND_ACTION_BOUNCE_OFF_OBJECT);
+}
+int rs64_shore_jump(float x, float z, float water) {
+    if (mario < 0) return 0;
+    struct MarioState *m = &g_state->mgMarioStateVal;
+    if (!(m->action & ACT_FLAG_SWIMMING)) return 0;
+    struct SM64SurfaceCollisionData *floor = NULL;
+    float height = find_floor(x, water + 150, z, &floor);
+    if (!floor || floor->normal.y < 0.5f || floor->type == SURFACE_BURNING || height < water - 40 || height > water + 140) return 0;
+    float dx = x - m->pos[0], dz = z - m->pos[2];
+    if (dx*dx + dz*dz < 0.001f) return 0;
+    sm64_set_mario_faceangle(mario, atan2f(dx, dz));
+    if (m->pos[1] < water - 100) {
+        /* Swim up toward a reachable bank first, rather than launching out of deep water. */
+        m->faceAngle[0] = 0x3000;
+        sm64_set_mario_forward_velocity(mario, 20);
+        return 2;
+    }
+    shore_clearance = height;
+    sm64_set_mario_action(mario, ACT_WATER_JUMP);
+    sm64_set_mario_forward_velocity(mario, 20);
+    float distance = sqrtf(dx*dx + dz*dz);
+    sm64_set_mario_velocity(mario, dx/distance*20, 44, dz/distance*20);
+    return 1;
 }
 void rs64_door_sound(int open) { sm64_play_sound_global(open ? SOUND_GENERAL_OPEN_WOOD_DOOR : SOUND_GENERAL_CLOSE_WOOD_DOOR); }
 void rs64_enemy_sound(void) { sm64_play_sound_global(SOUND_OBJ_DYING_ENEMY1); }

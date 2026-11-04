@@ -26,10 +26,13 @@ function setup() {
         _rs64_floor: () => 0,
         _rs64_spawn: () => 0,
         _rs64_tick: tick,
+        _rs64_speed: jest.fn(),
         _rs64_environment: jest.fn(),
         _rs64_position: () => 64,
         _rs64_health: () => 0x880,
         _rs64_particles: () => 0,
+        _rs64_action: () => 0,
+        _rs64_shore_jump: jest.fn(() => 0),
         _rs64_velocity: () => 0,
         _rs64_terminate: jest.fn(),
         _rs64_move: jest.fn(),
@@ -141,11 +144,12 @@ test("resizing a paused fresh spawn uses the floor position rather than the load
     input.cleanUp();
 });
 
-test("speed scales fixed physics steps without increasing their timestep", () => {
+test("movement speed leaves the 30Hz clock unchanged and updates native movement", () => {
     const { input, controller, tick, maps } = setup();
     controller.setSpeed(2);
     controller.update(100, maps);
-    expect(tick).toHaveBeenCalledTimes(5);
+    expect(tick).toHaveBeenCalledTimes(2);
+    expect(controller.module!._rs64_speed).toHaveBeenCalledWith(2);
     input.cleanUp();
 });
 
@@ -187,5 +191,46 @@ test("spawning over water starts at the surface rather than on the deep seabed",
     controller.update(34, [map]);
     expect((controller.module!._rs64_spawn as jest.Mock).mock.calls[0][1]).toBe(-80);
     expect(controller.position[1]).toBeCloseTo(80 / controller.unitsPerTile);
+    input.cleanUp();
+});
+
+test("swimming into dry terrain requests a shore jump toward movement without snapping upward", () => {
+    const { input, controller, maps } = setup();
+    const m = controller.module!;
+    m._rs64_action = () => 0x2000;
+    m.HEAPF32[17] = -80;
+    const jump = jest.fn((_x: number, _z: number, _water: number) => 1);
+    m._rs64_shore_jump = jump;
+    input.keys.set("KeyW", true);
+    const map = {
+        ...maps[0],
+        marioLiquids: new Int32Array([
+            1,
+            9 * 128,
+            0,
+            9 * 128,
+            11 * 128,
+            0,
+            10.25 * 128,
+            11 * 128,
+            0,
+            9 * 128,
+            1,
+            9 * 128,
+            0,
+            9 * 128,
+            9 * 128,
+            0,
+            10.25 * 128,
+            11 * 128,
+            0,
+            10.25 * 128,
+        ]),
+    };
+    controller.update(34, [map]);
+    expect(jump).toHaveBeenCalledTimes(1);
+    expect(jump.mock.calls[0][0]).toBeCloseTo(10 * controller.unitsPerTile);
+    expect(jump.mock.calls[0][1]).toBeCloseTo(10.65 * controller.unitsPerTile);
+    expect(m._rs64_move).not.toHaveBeenCalled();
     input.cleanUp();
 });

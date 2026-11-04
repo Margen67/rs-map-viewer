@@ -21,6 +21,9 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
     const renderer = Object.assign(Object.create(WebGLMapViewerRenderer.prototype), {
         mario: {
             active: true,
+            showCollision: false,
+            collisionThroughScenery: true,
+            collisionVertices: new Int32Array(9),
             audio,
             module: {},
             status: "Mario",
@@ -39,6 +42,9 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
     expect((renderer as WebGLMapViewerRenderer).mario.setVolume).toHaveBeenCalledWith(0.35);
     fireEvent.change(screen.getByLabelText("Mario speed"), { target: { value: "2" } });
     expect((renderer as WebGLMapViewerRenderer).mario.setSpeed).toHaveBeenCalledWith(2);
+    fireEvent.click(screen.getByLabelText("Show collision"));
+    expect((renderer as WebGLMapViewerRenderer).mario.showCollision).toBe(true);
+    expect(screen.getByText(/1 streamed collision triangles/)).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Mute"));
     expect(audio.muted).toBe(true);
     expect(screen.getByLabelText("Mute")).toBeChecked();

@@ -19,7 +19,7 @@ test("converts map-local triangles to nearby SM64 coordinates, preserving windin
         3200,
         3200,
     );
-    expect(Array.from(result)).toEqual([171, 85, 0, 171, 85, 171, 0, 85, 0]);
+    expect(Array.from(result)).toEqual([135, 67, 0, 135, 67, 135, 0, 67, 0]);
 });
 
 test("keeps a triangle crossing the collision window and excludes distant geometry", () => {

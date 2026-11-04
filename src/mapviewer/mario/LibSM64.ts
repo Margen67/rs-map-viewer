@@ -28,6 +28,8 @@ export interface LibSM64 {
     _rs64_audio_tick(queuedFrames: number): number;
     _rs64_music(enabled: number): void;
     _rs64_song(sequence: number): void;
+    _rs64_speed(multiplier: number): void;
+    _rs64_shore_jump(x: number, z: number, water: number): number;
     _rs64_environment(water: number, bottom: number, lava: number): void;
     _rs64_effects(): number;
     _rs64_velocity(): number;
@@ -49,7 +51,7 @@ declare global {
 
 let loadingScript: Promise<void> | undefined;
 // Keep the native ABI pair together across GitHub Pages/browser caches.
-const RUNTIME_VERSION = "water-doors-2";
+const RUNTIME_VERSION = "movement-debug-shore-4";
 export async function createLibSM64(): Promise<LibSM64> {
     const base = `${process.env.PUBLIC_URL || ""}/libsm64/`;
     if (!window.createLibSM64) {

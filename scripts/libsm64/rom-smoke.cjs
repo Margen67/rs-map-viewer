@@ -43,6 +43,39 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
             -6000, 0, -6000, 6000, 0, 6000, 6000, 0, -6000, -6000, 0, -6000, -6000, 0, 6000, 6000,
             0, 6000,
         ];
+        surfaces(floor);
+        function movementTrace(speed) {
+            m._rs64_speed(speed);
+            assert.ok(m._rs64_spawn(0, 30, 0) >= 0);
+            for (let i = 0; i < 30; i++) tick();
+            const start = position();
+            const distance = [];
+            for (let i = 0; i < 60; i++) {
+                tick(0, -1);
+                distance.push(Math.hypot(position()[0] - start[0], position()[2] - start[2]));
+            }
+            assert.ok(m._rs64_spawn(0, 30, 0) >= 0);
+            for (let i = 0; i < 30; i++) tick();
+            const jump = [];
+            for (let i = 0; i < 60; i++) {
+                tick(0, 0, i === 0 ? 1 : 0);
+                jump.push([position()[1], m._rs64_action()]);
+            }
+            return { distance, jump };
+        }
+        const normalMovement = movementTrace(1),
+            fastMovement = movementTrace(2);
+        for (const frame of [4, 9, 29, 59])
+            assert.ok(
+                Math.abs(fastMovement.distance[frame] - normalMovement.distance[frame] * 2) < 0.1,
+                `speed scales acceleration and travel at frame ${frame}`,
+            );
+        assert.deepEqual(
+            fastMovement.jump,
+            normalMovement.jump,
+            "speed does not change jump height, gravity or action timing",
+        );
+        m._rs64_speed(1);
         for (const slope of [0.0875, 0.364, 0.7]) {
             const tilted = floor.map((v, i) =>
                 i % 3 === 1 ? Math.round(floor[i - 1] * slope) : v,
@@ -128,6 +161,105 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
         m._rs64_environment(0, -700, -11000);
         tick();
         assert.ok(position()[1] >= -700, "cannot swim through the bottom of the world");
+        surfaces([
+            ...floor.map((value, i) => (i % 3 === 1 ? -700 : value)),
+            -1000,
+            0,
+            100,
+            1000,
+            0,
+            2000,
+            1000,
+            0,
+            100,
+            -1000,
+            0,
+            100,
+            -1000,
+            0,
+            2000,
+            1000,
+            0,
+            2000,
+        ]);
+        assert.ok(m._rs64_spawn(0, -80, 0) >= 0);
+        for (let i = 0; i < 30; i++) {
+            m._rs64_environment(0, -700, -11000);
+            tick();
+        }
+        const beforeShore = position();
+        assert.equal(m._rs64_shore_jump(0, 150, 0), 1, "reachable bank starts a water jump");
+        assert.deepEqual(position(), beforeShore, "shore jump does not teleport upward");
+        m._rs64_environment(0, -700, -11000);
+        tick();
+        assert.ok(
+            position()[1] > beforeShore[1] && position()[1] - beforeShore[1] <= 44,
+            "shore exit rises through native jump physics",
+        );
+        for (let i = 0; i < 50; i++) {
+            m._rs64_environment(position()[2] < 100 ? 0 : -11000, -700, -11000);
+            tick();
+        }
+        assert.ok(
+            position()[2] > 100 && Math.abs(position()[1]) < 1,
+            "water jump lands on the bank",
+        );
+        assert.ok(m._rs64_spawn(0, -350, 0) >= 0);
+        for (let i = 0; i < 30; i++) {
+            m._rs64_environment(0, -700, -11000);
+            tick();
+        }
+        m._rs64_move(0, -350, 0);
+        const deepStart = position()[1];
+        assert.equal(
+            m._rs64_shore_jump(0, 150, 0),
+            2,
+            "deep swimmers ascend toward a reachable bank first",
+        );
+        for (let i = 0; i < 100; i++) {
+            m._rs64_environment(position()[2] < 100 ? 0 : -11000, -700, -11000);
+            m._rs64_shore_jump(0, 150, 0);
+            tick();
+        }
+        assert.ok(
+            position()[1] > deepStart && position()[2] > 100 && Math.abs(position()[1]) < 1,
+            "deep swimmer rises and jumps onto the bank",
+        );
+        surfaces([
+            ...floor.map((value, i) => (i % 3 === 1 ? -700 : value)),
+            -1000,
+            135,
+            100,
+            1000,
+            135,
+            2000,
+            1000,
+            135,
+            100,
+            -1000,
+            135,
+            100,
+            -1000,
+            135,
+            2000,
+            1000,
+            135,
+            2000,
+        ]);
+        assert.ok(m._rs64_spawn(0, -80, 0) >= 0);
+        for (let i = 0; i < 30; i++) {
+            m._rs64_environment(0, -700, -11000);
+            tick();
+        }
+        assert.equal(m._rs64_shore_jump(0, 150, 0), 1, "jumps toward a raised reachable bank");
+        for (let i = 0; i < 50; i++) {
+            m._rs64_environment(position()[2] < 100 ? 0 : -11000, -700, -11000);
+            tick();
+        }
+        assert.ok(
+            position()[2] > 100 && Math.abs(position()[1] - 135) < 1,
+            "lands on a raised bank",
+        );
         surfaces(floor);
         assert.ok(m._rs64_spawn(0, 30, 0) >= 0);
         let burned = false;
@@ -165,7 +297,7 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
         m._rs64_stomp(0, 180, 0);
         assert.equal(m.HEAPF32[m._rs64_velocity() / 4 + 1], 30, "stomp bounce");
         console.log(
-            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed and lava burn passed.",
+            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed, shore jumps, movement speed, and lava burn passed.",
         );
     } finally {
         m._rs64_terminate();
