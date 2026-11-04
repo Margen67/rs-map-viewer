@@ -1,10 +1,16 @@
 import { CollisionSquare } from "./CollisionGeometry";
 
-// Vanilla OSRS terrain texture IDs (including newer ocean materials); no pathfinding flags.
-export function liquidKind(texture: number): number {
-    if ([1, 24, 25].includes(texture) || (texture >= 130 && texture <= 164)) return 1;
+// Vanilla OSRS liquid materials. Match source colors, never lit/blended blue floor colors.
+const WATER_RGB = new Set([0x3f6181, 0x557799, 0x7296b7, 0x44886e]);
+export function liquidKind(texture: number, primaryRgb = -1): number {
+    if (
+        [1, 24, 25].includes(texture) ||
+        (texture >= 130 && texture <= 164) ||
+        (texture >= 170 && texture <= 174)
+    )
+        return 1;
     if (texture === 31 || texture === 56) return 2;
-    return 0;
+    return texture === -1 && WATER_RGB.has(primaryRgb) ? 1 : 0;
 }
 export const SWIM_DEPTH = 4; // tiles; finite seabed beneath the visible water triangles
 

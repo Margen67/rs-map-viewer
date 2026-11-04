@@ -46,3 +46,79 @@ test("water-edge tolerance has finite overlapping seabed support", () => {
     expect(Math.max(...Array.from(collision).filter((_, i) => i % 3 === 0))).toBeGreaterThan(128);
     expect(sampleMarioEnvironment([map], 1.1, 1, 0.25).water).toBe(-11000);
 });
+
+test("recognizes reported ocean textures and exact untextured water materials", () => {
+    for (const texture of [170, 171, 172, 173, 174]) expect(liquidKind(texture)).toBe(1);
+    for (const color of [0x3f6181, 0x557799, 0x7296b7, 0x44886e])
+        expect(liquidKind(-1, color)).toBe(1);
+    for (const color of [0x3d2b0b, 0x282828, 0xff00ff, 0x0000ff])
+        expect(liquidKind(-1, color)).toBe(0);
+    expect(liquidKind(3, 0x557799)).toBe(0);
+});
+
+test("uses each face's source overlay or underlay without flooding the land half of a shore tile", () => {
+    const tiles = Array.from({ length: 64 }, () => new Array(64));
+    tiles[0][0] = {
+        minLevel: 0,
+        tileModel: {
+            overlayPrimaryRgb: 0x3f6181,
+            underlayPrimaryRgb: 0x3d2b0b,
+            faces: [
+                { isOverlay: true, vertices: vertices.map((v) => ({ ...v, textureId: -1 })) },
+                {
+                    isOverlay: false,
+                    vertices: [vertices[0], { x: 0, y: 0, z: 128 }, vertices[1]].map((v) => ({
+                        ...v,
+                        textureId: -1,
+                    })),
+                },
+            ],
+        },
+    };
+    const liquids: number[] = [];
+    const collision = buildMarioCollision({ levels: 1, tiles: [tiles] } as any, 0, 0, [], liquids);
+    expect(liquids).toHaveLength(10);
+    expect(
+        Array.from(collision)
+            .filter((_, i) => i % 3 === 1)
+            .sort((a, b) => a - b),
+    ).toEqual([0, 0, 0, 512, 512, 512]);
+    tiles[0][0].tileModel.overlayPrimaryRgb = 0x3d2b0b;
+    tiles[0][0].tileModel.underlayPrimaryRgb = 0x557799;
+    const underlayLiquids: number[] = [];
+    buildMarioCollision({ levels: 1, tiles: [tiles] } as any, 0, 0, [], underlayLiquids);
+    expect(underlayLiquids).toHaveLength(10);
+    expect(underlayLiquids.slice(1)).toEqual([0, 0, 0, 0, 0, 128, 128, 0, 128]);
+});
+
+test("non-blocking scenery water gets a finite bed without colliding at the visible surface", () => {
+    const entry = {
+        model: {
+            verticesX: [0, 128, 128],
+            verticesY: [0, 0, 0],
+            verticesZ: [0, 128, 0],
+            faceCount: 1,
+            indices1: [0],
+            indices2: [1],
+            indices3: [2],
+            faceColors3: [0],
+            faceTextures: [24],
+        },
+        sceneX: 0,
+        sceneZ: 0,
+        sceneHeight: 0,
+        heightOffset: 0,
+        contourGround: 0,
+        marioSolid: false,
+        marioGroundDecoration: true,
+    } as any;
+    for (const untexturedTemple of [false, true]) {
+        entry.interactId = untexturedTemple ? 38383 : 10459;
+        entry.model.faceTextures = [untexturedTemple ? -1 : 24];
+        const liquids: number[] = [];
+        const collision = buildMarioCollision({ levels: 0 } as any, 0, 0, [entry], liquids);
+        expect(liquids).toHaveLength(10);
+        expect(collision).toHaveLength(9);
+        for (let i = 1; i < 9; i += 3) expect(collision[i]).toBe(512);
+    }
+});

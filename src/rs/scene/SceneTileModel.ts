@@ -44,6 +44,7 @@ const tileShapeFaces = [
 ];
 
 type SceneTileFace = {
+    isOverlay?: boolean;
     vertices: [SceneTileVertex, SceneTileVertex, SceneTileVertex];
 };
 
@@ -91,6 +92,8 @@ export class SceneTileModel {
 
     faceTextures?: Int32Array;
 
+    overlayPrimaryRgb = -1;
+    underlayPrimaryRgb = -1;
     faces: SceneTileFace[] = [];
     // This can be less than faces.length due to hidden faces
     normalFaceCount: number;
@@ -436,6 +439,7 @@ export class SceneTileModel {
             const v2 = (this.vertexZ[c] - tileY) / TILE_SIZE;
 
             this.faces.push({
+                isOverlay,
                 vertices: [
                     {
                         x: this.vertexX[a],

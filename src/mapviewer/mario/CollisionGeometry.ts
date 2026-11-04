@@ -44,7 +44,12 @@ export function buildMarioCollision(
                 const tile = sceneTile.tileModel;
                 for (const face of tile?.faces ?? []) {
                     let [a, b, c] = face.vertices.map((v) => [v.x - offset, v.y, v.z - offset]);
-                    const kind = classifyLiquids ? liquidKind(face.vertices[0].textureId) : 0;
+                    const kind = classifyLiquids
+                        ? liquidKind(
+                              face.vertices[0].textureId,
+                              face.isOverlay ? tile!.overlayPrimaryRgb : tile!.underlayPrimaryRgb,
+                          )
+                        : 0;
                     if (kind) liquids.push(kind, ...a, ...b, ...c);
                     if (kind === 1) {
                         a[1] += SWIM_DEPTH * 128;
@@ -64,8 +69,16 @@ export function buildMarioCollision(
     for (const entry of models) {
         const walkable =
             entry.marioWalkable || (!entry.marioGroundDecoration && broadWalkable(entry.model));
-        if ((entry.marioSolid === false && !walkable) || tinyScenery(entry.model, walkable))
-            continue;
+        const solid = !(
+            (entry.marioSolid === false && !walkable) ||
+            tinyScenery(entry.model, walkable)
+        );
+        // Some water is a non-blocking decoration, including the untextured temple water mesh.
+        const waterScenery =
+            classifyLiquids &&
+            (entry.interactId === 38383 ||
+                entry.model.faceTextures?.some((texture) => liquidKind(texture) === 1));
+        if (!solid && !waterScenery) continue;
         // Scene models are already visibility-filtered, including upper-plane bridges.
         const model = entry.model;
         const ys = model.contourVerticesY ?? model.verticesY;
@@ -103,6 +116,20 @@ export function buildMarioCollision(
                 c = vertex(model.indices3[i]);
             const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
             const texture = model.faceTextures?.[i] ?? -1;
+            if (
+                waterScenery &&
+                (entry.interactId === 38383 || liquidKind(texture) === 1) &&
+                ny !== 0
+            ) {
+                liquids.push(1, ...a, ...b, ...c);
+                const bed = expandLiquidBed(
+                    [a, b, c].map(([x, y, z]) => [x, y + SWIM_DEPTH * 128, z]),
+                );
+                if (ny > 0) bed.reverse();
+                terrain.push(...bed.flat());
+                continue;
+            }
+            if (!solid) continue;
             const color = model.faceColors?.[i] ?? model.faceColors1?.[i] ?? 0;
             const wilderness =
                 worldBaseX + entry.sceneX / 128 >= 2944 &&

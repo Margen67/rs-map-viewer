@@ -113,9 +113,10 @@ paving provides foot support without adding side walls.
 Only visible mesh faces collide; steep surfaces and scenery have finite bounds.
 Native collision queries use a spatial index of the streamed mesh, preserving
 triangle tests and contact order while avoiding full-mesh scans in dense areas.
-Hidden NPCs do not create contact blockers. Vanilla OSRS water textures provide
-native swimming with a finite seabed four tiles below the rendered surface, a
-small overlap at tile edges, and wet-side recovery to prevent edge fall-through. Mario
+Hidden NPCs do not create contact blockers. Vanilla OSRS water textures (including
+newer ocean materials), source-color water overlays/underlays, and scenery water
+provide native swimming with a finite seabed four tiles below the rendered surface,
+a small overlap at tile edges, and wet-side recovery to prevent edge fall-through. Mario
 automatically jumps toward a reachable bank while swimming into it. Vanilla lava textures and the wilderness's untextured lava surfaces trigger SM64's burn bounce,
 damage, sounds and animation. Unrecognized/custom liquid materials need explicit
 classification. Camera-wall collision is not implemented; moving platforms do

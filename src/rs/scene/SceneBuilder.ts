@@ -1289,6 +1289,14 @@ export class SceneBuilder {
                         );
                     }
 
+                    if (underlayId !== -1) {
+                        const underlay = this.underlayTypeLoader.load(underlayId);
+                        tileModel.underlayPrimaryRgb =
+                            underlay.rgbColor ?? underlay.primaryRgb ?? -1;
+                    }
+                    if (overlayId !== -1)
+                        tileModel.overlayPrimaryRgb =
+                            this.overlayTypeLoader.load(overlayId).primaryRgb;
                     scene.newTileModel(level, x, y, tileModel);
                 }
             }
