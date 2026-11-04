@@ -27,17 +27,9 @@ near his current position. Changing cache, map detail, or renderer leaves Mario
 mode. The validated ROM stays in memory for the session; use **Play as Mario**
 to return without choosing it again. Changing renderer releases that memory.
 
-The picker also accepts a **ROM URL**. For automatic loading, use
-`?rom=` followed by the URL encoded with `encodeURIComponent`, for example
-`?rom=https%3A%2F%2Fexample.com%2Fmario.zip`. GitHub blob links and Dropbox share links are converted to direct downloads.
-Other remote servers must allow CORS (`Access-Control-Allow-Origin: *` or this
-site's origin). GitHub Pages cannot add headers to another server's responses;
-if a host blocks cross-origin access, open the download link, save the ROM/ZIP,
-and use **Choose ROM**. No proxy is used. Archive.org downloads may omit CORS
-headers even on direct storage servers; use the file picker for those links.
-ZIPs are opened locally and the extracted US ROM is validated before native
-loading; no ROM is uploaded or saved. The `rom` parameter remains in the URL when
-the camera moves.
+Choose a local .z64 or ZIP file in the ROM picker. ZIPs are opened locally and
+the extracted US ROM is validated before native loading; no ROM is uploaded or
+saved. ROM loading from URLs or query parameters is not supported.
 
 Connect a standard Xbox/PlayStation-compatible controller, press a button, and
 click the map to give it focus. Controllers already connected at startup and
@@ -114,7 +106,7 @@ Only visible mesh faces collide; steep surfaces and scenery have finite bounds.
 Native collision queries use a spatial index of the streamed mesh, preserving
 triangle tests and contact order while avoiding full-mesh scans in dense areas.
 Hidden NPCs do not create contact blockers. Vanilla OSRS water textures (including
-newer ocean materials), source-color water overlays/underlays, and scenery water
+newer ocean materials), source-color water overlays, and scenery water
 provide native swimming with a finite seabed four tiles below the rendered surface,
 a small overlap at tile edges, and wet-side recovery to prevent edge fall-through. Mario
 automatically jumps toward a reachable bank while swimming into it. Vanilla lava textures and the wilderness's untextured lava surfaces trigger SM64's burn bounce,

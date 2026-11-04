@@ -65,3 +65,34 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
     expect(audio.music).toBe(false);
     expect(screen.getByLabelText("Music")).not.toBeChecked();
 });
+
+test("ROM loading only uses the local file picker and ignores rom query parameters", () => {
+    const before = window.location.href;
+    window.history.replaceState({}, "", "/?rom=https%3A%2F%2Fexample.com%2From.zip");
+    const start = jest.fn();
+    const renderer = Object.assign(Object.create(WebGLMapViewerRenderer.prototype), {
+        mario: {
+            active: false,
+            loading: false,
+            hasRom: false,
+            start,
+            size: 1.9,
+            speed: 0.8,
+            volume: 0.5,
+            musicVolume: 0.3,
+            status: "Choose ROM",
+        },
+    }) as MapViewerRenderer;
+    try {
+        render(<MarioPanel renderer={renderer} />);
+        expect(screen.queryByLabelText("ROM URL")).not.toBeInTheDocument();
+        expect(start).not.toHaveBeenCalled();
+        const rom = new File([new Uint8Array([0x80, 0x37, 0x12, 0x40])], "US.z64");
+        fireEvent.change(screen.getByLabelText("Super Mario 64 US ROM"), {
+            target: { files: [rom] },
+        });
+        expect(start).toHaveBeenCalledWith(rom);
+    } finally {
+        window.history.replaceState({}, "", before);
+    }
+});

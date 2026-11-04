@@ -48,7 +48,7 @@ test("water-edge tolerance has finite overlapping seabed support", () => {
 });
 
 test("recognizes reported ocean textures and exact untextured water materials", () => {
-    for (const texture of [170, 171, 172, 173, 174]) expect(liquidKind(texture)).toBe(1);
+    for (const texture of [170, 171, 172, 173, 174, 176, 208]) expect(liquidKind(texture)).toBe(1);
     for (const color of [0x3f6181, 0x557799, 0x7296b7, 0x44886e])
         expect(liquidKind(-1, color)).toBe(1);
     for (const color of [0x3d2b0b, 0x282828, 0xff00ff, 0x0000ff])
@@ -56,7 +56,7 @@ test("recognizes reported ocean textures and exact untextured water materials", 
     expect(liquidKind(3, 0x557799)).toBe(0);
 });
 
-test("uses each face's source overlay or underlay without flooding the land half of a shore tile", () => {
+test("uses visible overlay materials without flooding blue underlays around lily ponds", () => {
     const tiles = Array.from({ length: 64 }, () => new Array(64));
     tiles[0][0] = {
         minLevel: 0,
@@ -86,9 +86,15 @@ test("uses each face's source overlay or underlay without flooding the land half
     tiles[0][0].tileModel.overlayPrimaryRgb = 0x3d2b0b;
     tiles[0][0].tileModel.underlayPrimaryRgb = 0x557799;
     const underlayLiquids: number[] = [];
-    buildMarioCollision({ levels: 1, tiles: [tiles] } as any, 0, 0, [], underlayLiquids);
-    expect(underlayLiquids).toHaveLength(10);
-    expect(underlayLiquids.slice(1)).toEqual([0, 0, 0, 0, 0, 128, 128, 0, 128]);
+    const land = buildMarioCollision(
+        { levels: 1, tiles: [tiles] } as any,
+        0,
+        0,
+        [],
+        underlayLiquids,
+    );
+    expect(underlayLiquids).toHaveLength(0);
+    expect(Array.from(land).filter((_, i) => i % 3 === 1)).toEqual([0, 0, 0, 0, 0, 0]);
 });
 
 test("non-blocking scenery water gets a finite bed without colliding at the visible surface", () => {

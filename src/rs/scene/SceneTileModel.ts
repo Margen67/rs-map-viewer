@@ -93,7 +93,6 @@ export class SceneTileModel {
     faceTextures?: Int32Array;
 
     overlayPrimaryRgb = -1;
-    underlayPrimaryRgb = -1;
     faces: SceneTileFace[] = [];
     // This can be less than faces.length due to hidden faces
     normalFaceCount: number;

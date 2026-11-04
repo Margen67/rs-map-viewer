@@ -47,7 +47,7 @@ export function buildMarioCollision(
                     const kind = classifyLiquids
                         ? liquidKind(
                               face.vertices[0].textureId,
-                              face.isOverlay ? tile!.overlayPrimaryRgb : tile!.underlayPrimaryRgb,
+                              face.isOverlay ? tile!.overlayPrimaryRgb : -1,
                           )
                         : 0;
                     if (kind) liquids.push(kind, ...a, ...b, ...c);

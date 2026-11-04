@@ -6,7 +6,9 @@ export function liquidKind(texture: number, primaryRgb = -1): number {
     if (
         [1, 24, 25].includes(texture) ||
         (texture >= 130 && texture <= 164) ||
-        (texture >= 170 && texture <= 174)
+        (texture >= 170 && texture <= 174) ||
+        texture === 176 ||
+        texture === 208
     )
         return 1;
     if (texture === 31 || texture === 56) return 2;

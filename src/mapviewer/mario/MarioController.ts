@@ -49,7 +49,6 @@ export class MarioController {
     collisionVertices = new Int32Array(0);
     collisionRevision = 0;
     private rom?: Uint8Array;
-    private romRequest?: AbortController;
     get hasRom(): boolean {
         return !!this.rom;
     }
@@ -123,11 +122,10 @@ export class MarioController {
         return !!this.module;
     }
 
-    async start(file?: File | string): Promise<void> {
+    async start(file?: File): Promise<void> {
         this.stop();
         const generation = this.generation;
         this.loading = true;
-        this.romRequest = new AbortController();
         this.status = "Loading Mario…";
         let module: LibSM64 | undefined;
         let initialized = false;
@@ -135,7 +133,7 @@ export class MarioController {
             this.audio = new MarioAudio(() => this.input.isGameplayFocused());
             this.audio.setVolume(1);
             // Nothing from the file is uploaded, persisted, or included in the build.
-            const rom = file ? await readMarioRom(file, this.romRequest.signal) : this.rom;
+            const rom = file ? await readMarioRom(file) : this.rom;
             if (!rom) throw new Error("Choose a US SM64 ROM first.");
             if (generation !== this.generation) return;
             this.rom = rom;
@@ -185,8 +183,6 @@ export class MarioController {
 
     stop(): void {
         this.generation++;
-        this.romRequest?.abort();
-        this.romRequest = undefined;
         this.audio?.dispose();
         this.audio = undefined;
         this.module?._rs64_terminate();
