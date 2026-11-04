@@ -19,9 +19,28 @@ test("wireframe matches native coordinates, winding classifications, and all thr
     expect(collisionDebugLines(new Int32Array(9), 0, 0, 1).positions).toHaveLength(0);
 });
 
-test("debug draws steep upward slopes as floors using the native near-vertical cutoff", () => {
+test("debug distinguishes steep sliding floors from walls using the native cutoff", () => {
     const lines = collisionDebugLines(new Int32Array([0, 0, 0, 128, 256, 0, 0, 0, -128]), 0, 0, 1);
     expect(Array.from(lines.colors.subarray(0, 3))).toEqual(
+        Array.from(new Float32Array([1, 1, 0.15])),
+    );
+});
+
+test("gentle floors remain green, steep floors are yellow, and near-vertical faces are orange", () => {
+    const color = (rise: number) =>
+        Array.from(
+            collisionDebugLines(
+                new Int32Array([0, 0, 0, 10000, Math.round(rise), 0, 0, 0, -10000]),
+                0,
+                0,
+                1,
+            ).colors.subarray(0, 3),
+        );
+    expect(color(10000 * Math.tan((37 * Math.PI) / 180))).toEqual(
         Array.from(new Float32Array([0.2, 1, 0.3])),
     );
+    expect(color(10000 * Math.tan((40 * Math.PI) / 180))).toEqual(
+        Array.from(new Float32Array([1, 1, 0.15])),
+    );
+    expect(color(2000000)).toEqual(Array.from(new Float32Array([1, 0.55, 0.1])));
 });

@@ -22,10 +22,14 @@ export function collisionDebugLines(
             nz = ax * by - ay * bx;
         const length = Math.hypot(nx, ny, nz);
         if (!length) continue;
+        // SM64's ordinary floor class starts sliding at cos(38 degrees).
+        const up = ny / length;
         const color =
-            ny / length > 0.01
-                ? [0.2, 1, 0.3]
-                : ny / length < -0.01
+            up > 0.01
+                ? up <= 0.7880108
+                    ? [1, 1, 0.15]
+                    : [0.2, 1, 0.3]
+                : up < -0.01
                 ? [0.8, 0.4, 1]
                 : [1, 0.55, 0.1];
         for (const v of [0, 1, 1, 2, 2, 0]) {

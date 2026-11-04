@@ -71,7 +71,8 @@ camera use the same interpolated position between the unchanged 30 Hz physics
 steps. Turn it off to inspect raw simulation poses.
 
 Enable **Show collision** in Mario controls to overlay the mesh wireframe. Green
-marks floors and slopes, orange near-vertical walls, and purple ceilings. **Show through
+marks gentle floors, yellow steep/sliding slopes (about 38° and above), orange
+near-vertical walls, and purple ceilings. **Show through
 scenery** reveals occluded triangles, including the seabed. In Mario mode this
 uses the exact streamed native mesh and updates with doors and animations; in
 camera mode it previews nearby collision without needing a ROM. This overlay
