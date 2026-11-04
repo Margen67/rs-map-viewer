@@ -29,7 +29,12 @@ to return without choosing it again. Changing renderer releases that memory.
 
 The picker also accepts a **ROM URL**. For automatic loading, use
 `?rom=` followed by the URL encoded with `encodeURIComponent`, for example
-`?rom=https%3A%2F%2Fexample.com%2Fmario.zip`. The remote server must allow CORS.
+`?rom=https%3A%2F%2Fexample.com%2Fmario.zip`. GitHub blob links and Dropbox share links are converted to direct downloads.
+Other remote servers must allow CORS (`Access-Control-Allow-Origin: *` or this
+site's origin). GitHub Pages cannot add headers to another server's responses;
+if a host blocks cross-origin access, open the download link, save the ROM/ZIP,
+and use **Choose ROM**. No proxy is used. Archive.org downloads may omit CORS
+headers even on direct storage servers; use the file picker for those links.
 ZIPs are opened locally and the extracted US ROM is validated before native
 loading; no ROM is uploaded or saved. The `rom` parameter remains in the URL when
 the camera moves.

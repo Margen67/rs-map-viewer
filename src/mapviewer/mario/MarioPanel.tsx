@@ -4,12 +4,18 @@ import { MapViewerRenderer } from "../MapViewerRenderer";
 import { WebGLMapViewerRenderer } from "../webgl/WebGLMapViewerRenderer";
 import { MARIO_SONGS } from "./MarioMusic";
 import "./MarioPanel.css";
+import { marioRomDownloadUrl } from "./MarioRom";
 
 export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.Element {
     const mario = renderer instanceof WebGLMapViewerRenderer ? renderer.mario : undefined;
     const [, refresh] = useState(0);
     const [romUrl, setRomUrl] = useState("");
     const attemptedUrl = useRef<string>();
+    let downloadUrl: string | undefined;
+    try {
+        downloadUrl = marioRomDownloadUrl(romUrl.trim() || attemptedUrl.current || "").href;
+        if (!romUrl.trim() && !attemptedUrl.current) downloadUrl = undefined;
+    } catch {}
     const fileInput = useRef<HTMLInputElement>(null);
     useEffect(() => {
         const timer = window.setInterval(() => refresh((n) => n + 1), 250);
@@ -243,8 +249,18 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
                             <button type="submit">Load URL</button>
                             <p>
                                 Supports .z64 and ZIP. Remote hosts must allow cross-origin
-                                downloads.
+                                downloads. GitHub and Dropbox file links are converted to direct
+                                downloads automatically.
                             </p>
+                            {!mario.active && downloadUrl && (
+                                <p>
+                                    If the host blocks loading,{" "}
+                                    <a href={downloadUrl} target="_blank" rel="noreferrer">
+                                        open the ROM download
+                                    </a>
+                                    , save the file, then use Choose ROM.
+                                </p>
+                            )}
                         </form>
                     )}
                     {(mario.active || mario.loading) && (

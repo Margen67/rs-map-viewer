@@ -3,16 +3,44 @@ import JSZip from "jszip";
 import { validateMarioRom } from "./LibSM64";
 
 const MAX_ROM_DOWNLOAD = 32 * 1024 * 1024;
+/** Convert file-sharing pages into browser-readable downloads without a third-party proxy. */
+export function marioRomDownloadUrl(source: string): URL {
+    const url = new URL(source, window.location.href);
+    if (!["https:", "http:"].includes(url.protocol))
+        throw new Error("Use an HTTP or HTTPS ROM URL.");
+    const parts = url.pathname.split("/");
+    if (url.hostname === "github.com" && parts[3] === "blob" && parts.length >= 6) {
+        url.hostname = "raw.githubusercontent.com";
+        parts.splice(3, 1);
+        url.pathname = parts.join("/");
+        url.search = "";
+    } else if (["dropbox.com", "www.dropbox.com"].includes(url.hostname)) {
+        url.hostname = "dl.dropboxusercontent.com";
+        url.searchParams.delete("dl");
+        url.searchParams.delete("raw");
+    }
+    return url;
+}
+
 export async function readMarioRom(
     source: File | string,
     signal?: AbortSignal,
 ): Promise<Uint8Array> {
     let bytes: Uint8Array;
     if (typeof source === "string") {
-        const url = new URL(source, window.location.href);
-        if (!["https:", "http:"].includes(url.protocol))
-            throw new Error("Use an HTTP or HTTPS ROM URL.");
-        const response = await fetch(url.href, { signal, credentials: "omit" });
+        const url = marioRomDownloadUrl(source);
+        let response: Response;
+        try {
+            response = await fetch(url.href, { signal, credentials: "omit", mode: "cors" });
+        } catch (error) {
+            if (signal?.aborted || (error instanceof Error && error.name === "AbortError"))
+                throw error;
+            throw new Error(
+                "ROM download blocked by CORS or a network error. The ROM host must allow " +
+                    "Access-Control-Allow-Origin for this site (or *). Download the ROM and use " +
+                    "Choose ROM, or use a direct URL from a host that allows cross-origin downloads.",
+            );
+        }
         if (!response.ok) throw new Error(`ROM download failed: HTTP ${response.status}`);
         if (Number(response.headers.get("Content-Length")) > MAX_ROM_DOWNLOAD)
             throw new Error("ROM download is too large (maximum 32 MiB).");
