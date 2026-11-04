@@ -11,8 +11,9 @@ import { LocEntity } from "../../../rs/scene/entity/LocEntity";
 import { TextureLoader } from "../../../rs/texture/TextureLoader";
 import { NpcSpawn, getMapNpcSpawns } from "../../data/npc/NpcSpawn";
 import { ObjSpawn, getMapObjSpawns } from "../../data/obj/ObjSpawn";
-import { blocksMario, isTinyMarioObstacle } from "../../mario/BlockingFlags";
+import { blocksMario } from "../../mario/BlockingFlags";
 import { buildMarioCollision, indexMarioCollision } from "../../mario/CollisionGeometry";
+import { createMarioDoor, isMarioDoor } from "../../mario/MarioDoors";
 import { loadMinimapBlob } from "../../worker/MinimapData";
 import { RenderDataLoader, RenderDataResult } from "../../worker/RenderDataLoader";
 import { WorkerState } from "../../worker/RenderDataWorker";
@@ -324,9 +325,10 @@ function addLocAnimationFrames(
         );
         if (marioCollisionFrames) {
             const collision: number[] = [];
-            if (model && !isTinyMarioObstacle(model))
+            if (model)
                 for (let f = 0; f < model.faceCount; f++) {
-                    if (model.faceColors3[f] === -2 || (model.faceAlphas?.[f] ?? 0) > 240) continue;
+                    if (model.faceColors3[f] === -2 || ((model.faceAlphas?.[f] ?? 0) & 255) === 255)
+                        continue;
                     for (const vertex of [
                         model.indices1[f],
                         model.indices2[f],
@@ -433,7 +435,7 @@ function addLocEntities(
             entityZ: entityZ,
         };
         const lowDetail = isLowDetail(scene, level, tileX, tileY, locType, type);
-        if (entity.seqId !== -1) {
+        if (entity.seqId !== -1 && !isMarioDoor(locType)) {
             const loc = {
                 ...sceneLocEntity,
                 lowDetail,
@@ -642,17 +644,34 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
         const sceneModels = sceneLocs.locs;
 
         // Create loc animated groups and add transformed locs
-        const locAnimatedGroups = addLocEntities(
-            state.sceneBuilder.centerLocHeightWithSize,
-            locModelLoader,
-            varManager,
-            scene,
-            sceneModels,
-            sceneBuf,
-            sceneLocs.locEntities,
+        const locAnimatedGroups = Array.from(
+            addLocEntities(
+                state.sceneBuilder.centerLocHeightWithSize,
+                locModelLoader,
+                varManager,
+                scene,
+                sceneModels,
+                sceneBuf,
+                sceneLocs.locEntities,
+            ),
         );
+        for (let i = sceneModels.length - 1; i >= 0; i--) {
+            const type = locTypeLoader.load(sceneModels[i].interactId);
+            if (!isMarioDoor(type)) continue;
+            locAnimatedGroups.push(createMarioDoor(sceneModels[i], type, sceneBuf));
+            sceneModels.splice(i, 1);
+        }
 
-        const marioCollision = buildMarioCollision(scene, borderSize, maxLevel, sceneModels);
+        const liquids: number[] = [];
+        const marioCollision = buildMarioCollision(
+            scene,
+            borderSize,
+            maxLevel,
+            sceneModels,
+            liquids,
+            state.cache.info.game === "oldschool",
+        );
+        const marioLiquids = new Int32Array(liquids);
         const marioCollisionChunks = indexMarioCollision(marioCollision);
 
         if (loadObjs) {
@@ -801,6 +820,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 ),
             ),
             marioCollision.buffer,
+            marioLiquids.buffer,
             ...marioCollisionChunks.map((chunk) => chunk.buffer),
             vertices.buffer,
             indices.buffer,
@@ -847,6 +867,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 minimapBlob,
 
                 marioCollision,
+                marioLiquids,
                 marioCollisionChunks,
                 vertices,
                 indices,

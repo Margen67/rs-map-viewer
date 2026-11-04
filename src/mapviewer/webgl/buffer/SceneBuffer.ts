@@ -279,15 +279,16 @@ export class SceneBuffer {
             anim,
             seqId: loc.entity.seqId,
             randomStart: loc.entity.seqRandomStart,
-            marioCollisionInfo: anim.marioCollisionFrames
-                ? {
-                      sceneX: loc.sceneX,
-                      sceneZ: loc.sceneZ,
-                      level: loc.level,
-                      contourGround: loc.contourGround,
-                      heightOffset: loc.heightOffset,
-                  }
-                : undefined,
+            marioCollisionInfo:
+                anim.marioCollisionFrames || anim.marioDoor
+                    ? {
+                          sceneX: loc.sceneX,
+                          sceneZ: loc.sceneZ,
+                          level: loc.level,
+                          contourGround: loc.contourGround,
+                          heightOffset: loc.heightOffset,
+                      }
+                    : undefined,
         };
     }
 

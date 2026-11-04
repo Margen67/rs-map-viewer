@@ -1,6 +1,6 @@
 import { Scene } from "../../rs/scene/Scene";
 import { ContourGroundType, SceneModel } from "../webgl/buffer/SceneBuffer";
-import { isTinyMarioObstacle } from "./BlockingFlags";
+import { SWIM_DEPTH, liquidKind } from "./MarioEnvironment";
 import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 /** Map-local RuneScape coordinates, 128 units per tile, Y pointing down. */
@@ -9,6 +9,8 @@ export function buildMarioCollision(
     border: number,
     maxLevel: number,
     models: SceneModel[],
+    liquids: number[] = [],
+    classifyLiquids = true,
 ): Int32Array {
     const vertices: number[] = [];
     const seen = new Set<string>();
@@ -38,6 +40,13 @@ export function buildMarioCollision(
                 const tile = sceneTile.tileModel;
                 for (const face of tile?.faces ?? []) {
                     const [a, b, c] = face.vertices.map((v) => [v.x - offset, v.y, v.z - offset]);
+                    const kind = classifyLiquids ? liquidKind(face.vertices[0].textureId) : 0;
+                    if (kind) liquids.push(kind, ...a, ...b, ...c);
+                    if (kind === 1) {
+                        a[1] += SWIM_DEPTH * 128;
+                        b[1] += SWIM_DEPTH * 128;
+                        c[1] += SWIM_DEPTH * 128;
+                    }
                     const normalY = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
                     if (normalY > 0) add(c, b, a);
                     else add(a, b, c);
@@ -46,7 +55,7 @@ export function buildMarioCollision(
         }
     }
     for (const entry of models) {
-        if (entry.marioSolid === false || isTinyMarioObstacle(entry.model)) continue;
+        if (entry.marioSolid === false) continue;
         // Scene models are already visibility-filtered, including upper-plane bridges.
         const model = entry.model;
         const ys = model.contourVerticesY ?? model.verticesY;
@@ -77,7 +86,8 @@ export function buildMarioCollision(
             ];
         };
         for (let i = 0; i < model.faceCount; i++) {
-            if (model.faceColors3[i] === -2 || (model.faceAlphas?.[i] ?? 0) > 240) continue;
+            if (model.faceColors3[i] === -2 || ((model.faceAlphas?.[i] ?? 0) & 255) === 255)
+                continue;
             add(vertex(model.indices1[i]), vertex(model.indices2[i]), vertex(model.indices3[i]));
         }
     }
@@ -91,6 +101,7 @@ export interface CollisionSquare {
     marioCollisionChunks?: Uint32Array[];
     marioAnimatedCollision?: Int32Array;
     marioCollisionVersion?: number;
+    marioLiquids?: Int32Array;
 }
 
 /** Index triangle offsets by 8×8-tile cells in the worker, including overlapping triangles. */

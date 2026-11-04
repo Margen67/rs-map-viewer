@@ -164,3 +164,31 @@ test("non-blocking scenery contributes no collision triangles", () => {
     model.marioSolid = true;
     expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
 });
+
+test("tiny blocking geometry collides, but fully transparent signed-alpha faces do not", () => {
+    const scene = { levels: 0, tiles: [] } as any;
+    const model = {
+        model: {
+            verticesX: [0, 8, 0],
+            verticesY: [0, -8, 0],
+            verticesZ: [0, 0, 8],
+            faceCount: 1,
+            indices1: [0],
+            indices2: [1],
+            indices3: [2],
+            faceColors3: [0],
+            faceAlphas: new Int8Array([0]),
+        },
+        sceneX: 0,
+        sceneZ: 0,
+        heightOffset: 0,
+        sceneHeight: 0,
+        contourGround: 0,
+        marioSolid: true,
+    } as any;
+    expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
+    model.model.faceAlphas[0] = -15; // 241: faint but visible
+    expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
+    model.model.faceAlphas[0] = -1;
+    expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(0);
+});

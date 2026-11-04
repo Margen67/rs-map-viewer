@@ -37,6 +37,21 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
                         />
                     </label>
                     <label className="mario-slider">
+                        Mario speed: {(mario.speed ?? 1).toFixed(2)}×
+                        <input
+                            aria-label="Mario speed"
+                            type="range"
+                            min="0.25"
+                            max="3"
+                            step="0.05"
+                            value={mario.speed ?? 1}
+                            onChange={(e) => {
+                                mario.setSpeed(Number(e.target.value));
+                                refresh((n) => n + 1);
+                            }}
+                        />
+                    </label>
+                    <label className="mario-slider">
                         Sound volume: {Math.round(mario.volume * 100)}%
                         <input
                             aria-label="Sound volume"
@@ -63,13 +78,18 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
                             if (file) void mario.start(file);
                         }}
                     />
+                    {!mario.active && !mario.loading && mario.hasRom && (
+                        <button onClick={() => void mario.start()}>Play as Mario</button>
+                    )}
                     {!mario.active && !mario.loading && (
                         <>
                             <p>
-                                Choose your US SM64 .z64 ROM. It stays in this browser and is never
-                                uploaded.
+                                Choose your US SM64 .z64 ROM once per session. It stays in memory
+                                and is never uploaded.
                             </p>
-                            <button onClick={() => fileInput.current?.click()}>Choose ROM</button>
+                            <button onClick={() => fileInput.current?.click()}>
+                                {mario.hasRom ? "Change ROM" : "Choose ROM"}
+                            </button>
                         </>
                     )}
                     {(mario.active || mario.loading) && (
@@ -141,10 +161,10 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
                         <br />
                         A / Cross: jump · X / Square or B / Circle: attack
                         <br />
-                        Triggers: crouch / ground pound
+                        Triggers: crouch / ground pound · Y / Triangle: door
                     </p>
                     <p>
-                        Keyboard: WASD · Space · X · Shift
+                        Keyboard: WASD · Space · X · Shift · E: door
                         <br />
                         Drag to orbit. Click the map to resume.
                     </p>

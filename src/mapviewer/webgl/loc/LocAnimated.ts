@@ -8,6 +8,10 @@ export class LocAnimated {
 
     frame = 0;
     cycleStart: number;
+    doorOpen = false;
+    toggleDoor(): void {
+        this.doorOpen = !this.doorOpen;
+    }
 
     constructor(
         readonly drawRangeIndex: number,
@@ -23,7 +27,7 @@ export class LocAnimated {
         readonly drawRangeInteractLodAlphaIndex: number,
 
         readonly anim: AnimationFrames,
-        seqType: SeqType,
+        seqType: SeqType | undefined,
         cycle: number,
         randomStart: boolean,
         readonly marioCollisionInfo?: AnimatedCollisionInfo,
@@ -31,7 +35,7 @@ export class LocAnimated {
         this.seqType = seqType;
         this.cycleStart = cycle - 1;
 
-        if (randomStart && seqType.frameStep !== -1) {
+        if (seqType && randomStart && seqType.frameStep !== -1) {
             if (seqType.isSkeletalSeq()) {
                 this.frame = Math.floor(Math.random() * seqType.getSkeletalDuration());
             } else {
@@ -60,6 +64,14 @@ export class LocAnimated {
     }
 
     update(seqFrameLoader: SeqFrameLoader, cycle: number): number {
+        if (this.anim.marioDoor) {
+            const steps = Math.max(0, Math.min(4, Math.floor(cycle - this.cycleStart)));
+            const target = this.doorOpen ? this.anim.frames.length - 1 : 0;
+            this.frame +=
+                Math.sign(target - this.frame) * Math.min(steps, Math.abs(target - this.frame));
+            if (steps) this.cycleStart = cycle;
+            return this.frame;
+        }
         if (!this.seqType) {
             return 0;
         }

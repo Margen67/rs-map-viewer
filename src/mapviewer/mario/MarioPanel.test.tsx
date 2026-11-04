@@ -26,6 +26,8 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
             status: "Mario",
             size: 1.5,
             volume: 0.7,
+            speed: 1,
+            setSpeed: jest.fn(),
             setSize: jest.fn(),
             setVolume: jest.fn(),
         },
@@ -35,6 +37,8 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
     expect((renderer as WebGLMapViewerRenderer).mario.setSize).toHaveBeenCalledWith(2);
     fireEvent.change(screen.getByLabelText("Sound volume"), { target: { value: "35" } });
     expect((renderer as WebGLMapViewerRenderer).mario.setVolume).toHaveBeenCalledWith(0.35);
+    fireEvent.change(screen.getByLabelText("Mario speed"), { target: { value: "2" } });
+    expect((renderer as WebGLMapViewerRenderer).mario.setSpeed).toHaveBeenCalledWith(2);
     fireEvent.click(screen.getByLabelText("Mute"));
     expect(audio.muted).toBe(true);
     expect(screen.getByLabelText("Mute")).toBeChecked();

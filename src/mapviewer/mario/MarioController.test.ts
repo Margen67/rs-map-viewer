@@ -26,6 +26,7 @@ function setup() {
         _rs64_floor: () => 0,
         _rs64_spawn: () => 0,
         _rs64_tick: tick,
+        _rs64_environment: jest.fn(),
         _rs64_position: () => 64,
         _rs64_health: () => 0x880,
         _rs64_particles: () => 0,
@@ -137,5 +138,54 @@ test("resizing a paused fresh spawn uses the floor position rather than the load
     controller.setSize(2);
     const args = (controller.module!._rs64_move as jest.Mock).mock.calls[0];
     expect(-args[1] / controller.unitsPerTile).toBeCloseTo(y);
+    input.cleanUp();
+});
+
+test("speed scales fixed physics steps without increasing their timestep", () => {
+    const { input, controller, tick, maps } = setup();
+    controller.setSpeed(2);
+    controller.update(100, maps);
+    expect(tick).toHaveBeenCalledTimes(5);
+    input.cleanUp();
+});
+
+test("door interaction triggers on press, not on every held frame", () => {
+    const { input, controller, maps } = setup();
+    controller.onDoorInteract = jest.fn();
+    input.keys.set("KeyE", true);
+    controller.update(34, maps);
+    controller.update(34, maps);
+    expect(controller.onDoorInteract).toHaveBeenCalledTimes(1);
+    input.keys.delete("KeyE");
+    controller.update(34, maps);
+    input.keys.set("KeyE", true);
+    controller.update(34, maps);
+    expect(controller.onDoorInteract).toHaveBeenCalledTimes(2);
+    input.cleanUp();
+});
+
+test("spawning over water starts at the surface rather than on the deep seabed", () => {
+    const { input, canvas, controller, maps } = setup();
+    canvas.blur();
+    controller.module!._rs64_floor = () => -700;
+    controller.module!._rs64_spawn = jest.fn(() => 0);
+    const map = {
+        ...maps[0],
+        marioLiquids: new Int32Array([
+            1,
+            9 * 128,
+            0,
+            9 * 128,
+            11 * 128,
+            0,
+            11 * 128,
+            11 * 128,
+            0,
+            9 * 128,
+        ]),
+    };
+    controller.update(34, [map]);
+    expect((controller.module!._rs64_spawn as jest.Mock).mock.calls[0][1]).toBe(-80);
+    expect(controller.position[1]).toBeCloseTo(80 / controller.unitsPerTile);
     input.cleanUp();
 });

@@ -35,6 +35,7 @@ import { WebGLMapSquare } from "./WebGLMapSquare";
 import { SdMapData } from "./loader/SdMapData";
 import { SdMapDataLoader } from "./loader/SdMapDataLoader";
 import { SdMapLoaderInput } from "./loader/SdMapLoaderInput";
+import { LocAnimated } from "./loc/LocAnimated";
 import {
     FRAME_FXAA_PROGRAM,
     FRAME_PROGRAM,
@@ -119,6 +120,28 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                             });
                         }
                     }
+                this.mario.onDoorInteract = () => {
+                    let nearest: { loc: LocAnimated; distance: number } | undefined;
+                    for (const map of this.mapManager.mapSquares.values())
+                        for (const loc of map.locsAnimated) {
+                            if (!loc.anim.marioDoor || !loc.marioCollisionInfo) continue;
+                            const info = loc.marioCollisionInfo;
+                            const dx = map.mapX * 64 + info.sceneX / 128 - this.mario.position[0];
+                            const dz = map.mapY * 64 + info.sceneZ / 128 - this.mario.position[2];
+                            const y = map.sampleHeight(info.level, info.sceneX, info.sceneZ);
+                            const distance = Math.hypot(dx, dz);
+                            if (
+                                distance <= 1.6 &&
+                                Math.abs(y - this.mario.position[1]) < 1.5 &&
+                                (!nearest || distance < nearest.distance)
+                            )
+                                nearest = { loc, distance };
+                        }
+                    if (nearest) {
+                        nearest.loc.toggleDoor();
+                        this.mario.module?._rs64_door_sound(Number(nearest.loc.doorOpen));
+                    }
+                };
                 this.mario.update(deltaTime, this.mapManager.mapSquares.values(), targets);
             } catch (error) {
                 this.mario.stop();
@@ -753,6 +776,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
             ),
         );
 
+        this.mapManager.getMap(mapX, mapY)!.marioLiquids = mapData.marioLiquids;
         this.mapManager.getMap(mapX, mapY)!.heightMapData = mapData.heightMapTextureData;
         this.mapManager.getMap(mapX, mapY)!.marioCollision = mapData.marioCollision;
         this.mapManager.getMap(mapX, mapY)!.marioCollisionChunks = mapData.marioCollisionChunks;
@@ -1557,6 +1581,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
     }
 
     override async cleanUp(): Promise<void> {
+        this.mario.dispose();
         super.cleanUp();
         this.mapViewer.workerPool.resetLoader(this.dataLoader);
 

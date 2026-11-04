@@ -25,6 +25,29 @@ head, wall = text[:start], text[start:]
 old = "surf = loaded_surface_iter_get_at_index( i, j );"
 assert wall.count(old) == 1
 wall = wall.replace(old, old + "\n        x = data->x; z = data->z;")
+# Test the closest point on the actual triangle, including its vertical extent.
+# The vanilla axis projection assumes vertical walls and over-rejects steep slopes.
+a = wall.index("        px = x;")
+b = wall.index("        // Ignore camera only surfaces.", a)
+wall = wall[:a] + """        f32 horizontal2 = surf->normal.x * surf->normal.x + surf->normal.z * surf->normal.z;
+        if (horizontal2 < 0.000001f) continue;
+        f64 qx = x - offset * surf->normal.x / horizontal2;
+        f64 qz = z - offset * surf->normal.z / horizontal2;
+        f64 ax = surf->vertex2[0] - surf->vertex1[0];
+        f64 ay = surf->vertex2[1] - surf->vertex1[1];
+        f64 az = surf->vertex2[2] - surf->vertex1[2];
+        f64 bx = surf->vertex3[0] - surf->vertex1[0];
+        f64 by = surf->vertex3[1] - surf->vertex1[1];
+        f64 bz = surf->vertex3[2] - surf->vertex1[2];
+        f64 cx = qx - surf->vertex1[0], cy = y - surf->vertex1[1], cz = qz - surf->vertex1[2];
+        f64 aa = ax*ax + ay*ay + az*az, ab = ax*bx + ay*by + az*bz;
+        f64 bb = bx*bx + by*by + bz*bz, ac = ax*cx + ay*cy + az*cz, bc = bx*cx + by*cy + bz*cz;
+        f64 determinant = aa*bb - ab*ab;
+        if (determinant <= 0) continue;
+        f64 u = (bb*ac - ab*bc) / determinant, v = (aa*bc - ab*ac) / determinant;
+        if (u < -0.00001 || v < -0.00001 || u + v > 1.00001) continue;
+
+""" + wall[b:]
 # RuneScape also uses single-plane fences. Resolve to the side Mario approached,
 # rather than teleporting a back-side contact through the plane or duplicating faces.
 old = """data->x += surf->normal.x * (radius - offset);

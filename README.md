@@ -24,7 +24,8 @@ own unmodified US Super Mario 64 `.z64` ROM (8 MiB, SHA-1
 it is never uploaded or saved. Mario spawns on a floor beneath the camera after
 the map loads. **Return to camera** leaves Mario mode; **Respawn** resets Mario
 near his current position. Changing cache, map detail, or renderer leaves Mario
-mode, so choose the ROM again afterward.
+mode. The validated ROM stays in memory for the session; use **Play as Mario**
+to return without choosing it again. Changing renderer releases that memory.
 
 Connect a standard Xbox/PlayStation-compatible controller, press a button, and
 click the map to give it focus. Controllers already connected at startup and
@@ -38,15 +39,20 @@ reconnections are detected automatically.
 | Attack                | X / Square or B / Circle | X                   |
 | Crouch / ground pound | Either trigger           | Shift               |
 
+**E** or **Y / Triangle** opens or closes a nearby door or gate. The door swings
+with its collision mesh and plays the ROM door sound.
+
 Mario's voice, footsteps, effects, and optional background music are synthesized
 by libsm64 from the locally supplied ROM and played as stereo audio through Web
 Audio. Use **Enable audio** if the browser requires another click before playback.
 **Mute** silences all audio; **Music** toggles background music while preserving
 effects. Losing map focus or hiding the tab pauses simulation and queued audio.
-Leaving Mario mode closes the audio context.
+Leaving Mario mode closes the audio context. Entering Mario mode selects a
+random SM64 background song.
 
 The **Mario size** slider ranges from 0.5× to 3× (default 1.5×), updating the mesh,
-collision scale, and camera target together. **Sound volume** controls music and
+collision scale, and camera target together. **Mario speed** ranges from 0.25×
+to 3× and adjusts simulation speed, retaining fixed physics steps. **Sound volume** controls music and
 effects from 0–100%; mute preserves the selected volume.
 
 Ordinary floors use SM64's non-slippery surface class. Collision keeps one
@@ -63,10 +69,14 @@ reloading the map. RuneScape death animations and effects are not used.
 Terrain, static geometry, and solid animated scenery provide collision. Animated
 colliders follow the rendered frame and terrain contour, and Mario shares the
 map's depth buffer. Static and animated objects follow the scene's player-blocking
-flags. As a fallback, objects no taller than 16 map units and no wider than 32
-units on either horizontal axis are excluded (128 units = one tile). Walls have
-finite height; hidden NPCs do not create contact blockers. Water volumes and camera-wall collision are not implemented;
-moving platforms do not yet carry Mario automatically. Older caches may be needed when newer revisions
+flags, with no size exclusions or collision generated from pathfinding barriers.
+Only visible mesh faces collide; steep surfaces and scenery have finite bounds.
+Hidden NPCs do not create contact blockers. Vanilla OSRS water textures provide
+native swimming with a finite seabed four tiles below the rendered surface; Mario
+can climb onto the shore. Vanilla lava textures trigger SM64's burn bounce,
+damage, sounds and animation. Unrecognized/custom liquid materials need explicit
+classification. Camera-wall collision is not implemented; moving platforms do
+not yet carry Mario automatically. Older caches may be needed when newer revisions
 use opcodes the viewer does not yet support; revision 215 (2023-07-26) was used
 for integration checks.
 

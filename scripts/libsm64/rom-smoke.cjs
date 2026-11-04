@@ -115,6 +115,30 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
         assert.ok(m._rs64_spawn(0, 630, 0) >= 0);
         for (let i = 0; i < 90; i++) tick(0, -1);
         assert.ok(position()[2] > 400, "walks above the top of a finite wall");
+        surfaces(floor.map((value, i) => (i % 3 === 1 ? -700 : value)));
+        assert.ok(m._rs64_spawn(0, -300, 0) >= 0);
+        for (let i = 0; i < 90; i++) {
+            m._rs64_environment(0, -700, -11000);
+            tick(0, 0, i % 10 === 0 ? 1 : 0);
+            assert.ok(position()[1] >= -700, "swimming remains above the seabed");
+        }
+        assert.ok(m._rs64_action() & 0x2000, "native swimming action");
+        assert.ok(position()[1] <= -75 && position()[1] > -150, "swims at the water surface");
+        m._rs64_move(position()[0], -900, position()[2]);
+        m._rs64_environment(0, -700, -11000);
+        tick();
+        assert.ok(position()[1] >= -700, "cannot swim through the bottom of the world");
+        surfaces(floor);
+        assert.ok(m._rs64_spawn(0, 30, 0) >= 0);
+        let burned = false;
+        for (let i = 0; i < 45; i++) {
+            m._rs64_environment(-11000, -11000, 0);
+            tick();
+            if (m._rs64_action() === 0x010208b7) burned = true; // ACT_LAVA_BOOST
+        }
+        assert.ok(burned, "native lava boost");
+        assert.ok(m._rs64_health() < 0x880, "lava deals damage");
+        m._rs64_environment(-11000, -11000, -11000);
         surfaces(floor);
         m._rs64_spawn(0, 30, 0);
         for (let i = 0; i < 90; i++) tick();
@@ -141,7 +165,7 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
         m._rs64_stomp(0, 180, 0);
         assert.equal(m.HEAPF32[m._rs64_velocity() / 4 + 1], 30, "stomp bounce");
         console.log(
-            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention and stomp bounce.",
+            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed and lava burn passed.",
         );
     } finally {
         m._rs64_terminate();

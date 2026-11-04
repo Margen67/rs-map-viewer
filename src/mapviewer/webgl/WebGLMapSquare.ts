@@ -43,6 +43,7 @@ export class WebGLMapSquare {
     readonly id: number;
 
     marioCollision!: Int32Array;
+    marioLiquids!: Int32Array;
     marioCollisionChunks!: Uint32Array[];
     heightMapData!: Int16Array;
     marioAnimatedCollision = new Int32Array(0);
@@ -250,7 +251,7 @@ export class WebGLMapSquare {
 
         const locsAnimated: LocAnimated[] = [];
         for (const loc of mapData.locsAnimated) {
-            const seqType = seqTypeLoader.load(loc.seqId);
+            const seqType = loc.seqId < 0 ? undefined : seqTypeLoader.load(loc.seqId);
             locsAnimated.push(
                 new LocAnimated(
                     loc.drawRangeIndex,

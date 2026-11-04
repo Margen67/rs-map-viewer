@@ -27,6 +27,8 @@ export interface LibSM64 {
     _rs64_audio_buffer(): number;
     _rs64_audio_tick(queuedFrames: number): number;
     _rs64_music(enabled: number): void;
+    _rs64_song(sequence: number): void;
+    _rs64_environment(water: number, bottom: number, lava: number): void;
     _rs64_effects(): number;
     _rs64_velocity(): number;
     _rs64_particles(): number;
@@ -34,6 +36,7 @@ export interface LibSM64 {
     _rs64_attack(x: number, y: number, z: number, height: number): number;
     _rs64_stomp(x: number, y: number, z: number): void;
     _rs64_enemy_sound(): void;
+    _rs64_door_sound(open: number): void;
     _rs64_push(dx: number, dz: number): void;
 }
 
@@ -46,7 +49,7 @@ declare global {
 
 let loadingScript: Promise<void> | undefined;
 // Keep the native ABI pair together across GitHub Pages/browser caches.
-const RUNTIME_VERSION = "npc-effects-1";
+const RUNTIME_VERSION = "water-doors-2";
 export async function createLibSM64(): Promise<LibSM64> {
     const base = `${process.env.PUBLIC_URL || ""}/libsm64/`;
     if (!window.createLibSM64) {

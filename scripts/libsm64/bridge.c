@@ -1,6 +1,7 @@
 #include "libsm64.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "decomp/include/surface_terrains.h"
 #include "decomp/include/sm64.h"
 #include "decomp/include/audio_defines.h"
@@ -16,6 +17,10 @@ static float uvs[SM64_GEO_MAX_TRIANGLES * 6];
 static struct SM64MarioGeometryBuffers geometry = {positions, normals, colors, uvs, 0};
 static struct SM64MarioState state;
 static int32_t mario = -1;
+static int song = 3;
+static float water_bottom = -11000;
+static int has_water = 0;
+static struct SM64SurfaceCollisionData *burning_floor = NULL;
 static int16_t audio[544 * 2 * 2];
 static uint8_t effects[640 * 32 * 4];
 
@@ -63,18 +68,37 @@ uint32_t rs64_audio_tick(uint32_t queued) {
     return sm64_audio_tick(queued, 1100, audio) * 2;
 }
 void rs64_music(int enabled) {
-    if (enabled) sm64_play_music(0, 3, 0); /* SEQ_LEVEL_GRASS */
-    else sm64_stop_background_music(3);
+    if (enabled) sm64_play_music(0, song, 0);
+    else sm64_stop_background_music(song);
+}
+void rs64_song(int sequence) {
+    sm64_stop_background_music(song);
+    if (sequence >= 2 && sequence <= 33) song = sequence;
+}
+void rs64_environment(float water, float bottom, float lava) {
+    if (mario < 0) return;
+    if (burning_floor) { burning_floor->type = SURFACE_NOT_SLIPPERY; burning_floor = NULL; }
+    sm64_set_mario_water_level(mario, (int)water);
+    has_water = water > -10000;
+    water_bottom = bottom;
+    struct MarioState *m = &g_state->mgMarioStateVal;
+    if (lava > -10000 && m->floor && fabsf(m->floorHeight - lava) < 8) {
+        burning_floor = m->floor;
+        burning_floor->type = SURFACE_BURNING;
+    }
 }
 
 void rs64_terminate(void) {
     if (mario >= 0) sm64_mario_delete(mario);
     mario = -1;
     geometry.numTrianglesUsed = 0;
+    burning_floor = NULL;
+    has_water = 0;
     sm64_global_terminate();
 }
 
 int rs64_surfaces(const int32_t *vertices, uint32_t count) {
+    burning_floor = NULL;
     struct SM64Surface *surfaces = calloc(count, sizeof(*surfaces));
     if (count && !surfaces) return 0;
     for (uint32_t i = 0; i < count; ++i) {
@@ -113,6 +137,11 @@ int rs64_spawn(float x, float y, float z) {
 void rs64_tick(float camX, float camZ, float stickX, float stickY, int a, int b, int z) {
     const struct SM64MarioInputs inputs = {camX, camZ, stickX, stickY, a != 0, b != 0, z != 0};
     sm64_mario_tick(mario, &inputs, &state, &geometry);
+    if (has_water && state.position[1] < water_bottom + 10) {
+        sm64_set_mario_position(mario, state.position[0], water_bottom + 10, state.position[2]);
+        state.position[1] = water_bottom + 10;
+        sm64_set_mario_velocity(mario, state.velocity[0], fmaxf(0, state.velocity[1]), state.velocity[2]);
+    }
 }
 
 void rs64_move(float x, float y, float z) {
@@ -142,6 +171,7 @@ void rs64_stomp(float x, float y, float z) {
     sm64_set_mario_velocity(mario, state.velocity[0], 30, state.velocity[2]);
     sm64_play_sound_global(SOUND_ACTION_BOUNCE_OFF_OBJECT);
 }
+void rs64_door_sound(int open) { sm64_play_sound_global(open ? SOUND_GENERAL_OPEN_WOOD_DOOR : SOUND_GENERAL_CLOSE_WOOD_DOOR); }
 void rs64_enemy_sound(void) { sm64_play_sound_global(SOUND_OBJ_DYING_ENEMY1); }
 void rs64_push(float dx, float dz) {
     float x = state.position[0] + dx, y = state.position[1], z = state.position[2] + dz;

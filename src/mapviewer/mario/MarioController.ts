@@ -6,6 +6,7 @@ import { CollisionSquare, collectMarioSurfaces } from "./CollisionGeometry";
 import { LibSM64, createLibSM64, validateMarioRom } from "./LibSM64";
 import { MarioAudio } from "./MarioAudio";
 import { MarioCombat, MarioNpcTarget } from "./MarioCombat";
+import { sampleMarioEnvironment } from "./MarioEnvironment";
 import { MarioParticles } from "./MarioParticles";
 import { MARIO_SIZE_MULTIPLIER } from "./MarioScale";
 
@@ -20,6 +21,17 @@ export class MarioController {
     readonly combat = new MarioCombat(this.particles);
     size = MARIO_SIZE_MULTIPLIER;
     volume = 0.7;
+    speed = 1;
+    private rom?: Uint8Array;
+    get hasRom(): boolean {
+        return !!this.rom;
+    }
+    setSpeed(value: number): void {
+        this.speed = clamp(value, 0.25, 3);
+    }
+    onDoorInteract?: () => void;
+    private doorHeld = false;
+    private waterLevel = -11000;
 
     get unitsPerTile(): number {
         return 256 / this.size;
@@ -66,7 +78,7 @@ export class MarioController {
         return !!this.module;
     }
 
-    async start(file: File): Promise<void> {
+    async start(file?: File): Promise<void> {
         this.stop();
         const generation = this.generation;
         this.loading = true;
@@ -77,9 +89,11 @@ export class MarioController {
             this.audio = new MarioAudio(() => this.input.isGameplayFocused());
             this.audio.setVolume(this.volume);
             // Nothing from the file is uploaded, persisted, or included in the build.
-            const rom = new Uint8Array(await file.arrayBuffer());
-            await validateMarioRom(rom);
+            const rom = file ? new Uint8Array(await file.arrayBuffer()) : this.rom;
+            if (!rom) throw new Error("Choose a US SM64 ROM first.");
+            if (file) await validateMarioRom(rom);
             if (generation !== this.generation) return;
+            this.rom = rom;
             module = await createLibSM64();
             if (generation !== this.generation) return;
             const pointer = module._malloc(rom.length);
@@ -95,6 +109,8 @@ export class MarioController {
                 module._free(pointer);
             }
             this.module = module;
+            const songs = [3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 17, 19, 20, 22, 25, 33];
+            module._rs64_song(songs[Math.floor(Math.random() * songs.length)]);
             module._rs64_music(1);
             this.previousProjection = this.camera.projectionType;
             this.camera.setProjectionType(ProjectionType.PERSPECTIVE);
@@ -139,7 +155,16 @@ export class MarioController {
             this.camera.setProjectionType(this.previousProjection);
             this.previousProjection = undefined;
         }
-        this.status = "Choose a US SM64 ROM to play as Mario.";
+        this.doorHeld = false;
+        this.waterLevel = -11000;
+        this.status = this.hasRom
+            ? "Ready to play — ROM loaded for this session."
+            : "Choose a US SM64 ROM to play as Mario.";
+    }
+
+    dispose(): void {
+        this.stop();
+        this.rom = undefined;
     }
 
     respawn(): void {
@@ -223,13 +248,18 @@ export class MarioController {
             const sx = (x - this.originX) * SCALE;
             const sz = (z - this.originZ) * SCALE;
             const floor = m._rs64_floor(sx, this.spawnHeight + 100, sz);
-            if (floor <= -10000 || m._rs64_spawn(sx, floor + 30, sz) < 0) {
+            const environment = sampleMarioEnvironment(nearby, x, this.position[1], z);
+            const spawnY =
+                environment.water > -10000 && environment.water * SCALE > floor + 100
+                    ? environment.water * SCALE - 80
+                    : floor + 30;
+            if (floor <= -10000 || m._rs64_spawn(sx, spawnY, sz) < 0) {
                 this.status =
                     "No floor here. Return to camera and choose a position above solid ground.";
                 return;
             }
             this.spawned = true;
-            this.position = [x, -(floor + 30) / SCALE, z];
+            this.position = [x, -spawnY / SCALE, z];
             this.spawnHeight = floor + 1000;
             this.camera.pitch = -160;
         }
@@ -253,7 +283,10 @@ export class MarioController {
         const stickY = clamp(axis(1) + Number(key("KeyS")) - Number(key("KeyW")), -1, 1);
         const magnitude = Math.max(1, Math.hypot(stickX, stickY));
         const yaw = this.camera.yaw * RS_TO_RADIANS;
-        this.accumulator += Math.min(deltaTime, 100);
+        const door = button(3) || key("KeyE");
+        if (door && !this.doorHeld) this.onDoorInteract?.();
+        this.doorHeld = door;
+        this.accumulator += Math.min(deltaTime, 100) * this.speed;
         while (this.accumulator >= STEP) {
             const statePointer = m._rs64_position() / 4;
             const previous = [
@@ -261,6 +294,30 @@ export class MarioController {
                 -m.HEAPF32[statePointer + 1] / SCALE,
                 m.HEAPF32[statePointer + 2] / SCALE + this.originZ,
             ];
+            const environment = sampleMarioEnvironment(
+                nearby,
+                previous[0],
+                previous[1],
+                previous[2],
+            );
+            if (environment.water <= -10000 && this.waterLevel > -10000) {
+                // Climb out onto the actual shore mesh rather than swimming underneath it.
+                const px = (previous[0] - this.originX) * SCALE,
+                    pz = (previous[2] - this.originZ) * SCALE;
+                const shore = m._rs64_floor(px, this.waterLevel * SCALE + 100, pz);
+                if (
+                    shore > -10000 &&
+                    shore >= -previous[1] * SCALE &&
+                    shore <= this.waterLevel * SCALE + 100
+                )
+                    m._rs64_move(px, shore + 5, pz);
+            }
+            this.waterLevel = environment.water;
+            m._rs64_environment(
+                environment.water > -10000 ? environment.water * SCALE : -11000,
+                environment.bottom > -10000 ? environment.bottom * SCALE : -11000,
+                environment.lava > -10000 ? environment.lava * SCALE : -11000,
+            );
             m._rs64_tick(
                 Math.sin(yaw),
                 Math.cos(yaw),
