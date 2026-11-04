@@ -98,6 +98,13 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
                 const targets: MarioNpcTarget[] = [];
                 for (const map of this.mapManager.mapSquares.values())
                     for (const npc of map.npcs) {
+                        if (!this.loadNpcs || !map.canRender(this.stats.frameCount)) continue;
+                        const anim = npc.getAnimationFrames();
+                        if (
+                            !anim.frames[npc.movementFrame]?.[1] &&
+                            !anim.framesAlpha?.[npc.movementFrame]?.[1]
+                        )
+                            continue;
                         const x = map.mapX * 64 + npc.x / 128,
                             z = map.mapY * 64 + npc.y / 128;
                         if (

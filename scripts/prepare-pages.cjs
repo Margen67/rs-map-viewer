@@ -1,93 +1,68 @@
-/* A Pages artifact needs actual map data; the development server's /caches route is absent. */
+/* Publish catalog metadata only. Cache payloads download externally in the browser. */
 const fs = require("node:fs/promises");
-const path = require("node:path");
-const AdmZip = require("adm-zip");
-
-const CACHE_ID = 1447;
-const CACHE_NAME = "osrs-215_2023-07-26";
 const archive = "https://archive.openrs2.org";
-const cacheDir = path.resolve(process.env.PAGES_CACHE_DIR || ".cache/pages/openrs2-1447");
-const cacheFile = /^main_file_cache\.(dat2|idx\d+)$/;
-
+const original = "https://osrs.world/caches/";
 async function request(url) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(180000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(60000) });
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-    return response;
+    return response.json();
 }
-
-async function validateCache() {
-    const info = JSON.parse(await fs.readFile(path.join(cacheDir, "info.json"), "utf8"));
-    if (info.id !== CACHE_ID || info.game !== "oldschool" || info.builds[0]?.major !== 215) {
-        throw new Error("Unexpected Pages cache revision");
-    }
-    const keys = JSON.parse(await fs.readFile(path.join(cacheDir, "keys.json"), "utf8"));
-    if (!Object.keys(keys).length) throw new Error("Missing map decryption keys");
-    for (const name of [
-        "main_file_cache.dat2",
-        "main_file_cache.idx0",
-        "main_file_cache.idx5",
-        "main_file_cache.idx255",
-    ]) {
-        if (!(await fs.stat(path.join(cacheDir, name))).size)
-            throw new Error(`Empty cache file: ${name}`);
-    }
-    return info;
+function cacheName(c) {
+    return `${c.game === "oldschool" ? (c.environment === "beta" ? "osrs-beta" : "osrs") : "rs2"}-${
+        c.builds?.[0]?.major
+    }_${c.timestamp?.split("T")[0]}`;
 }
-
+function matchArchive(info, entries) {
+    return entries
+        .filter(
+            (entry) =>
+                entry.scope === "runescape" &&
+                entry.language === "en" &&
+                entry.game === info.game &&
+                entry.environment === info.environment &&
+                cacheName(entry) === info.name,
+        )
+        .sort((a, b) => b.valid_groups - a.valid_groups || b.valid_keys - a.valid_keys)[0];
+}
+function makeCatalog(normal, entries) {
+    if (!Array.isArray(normal) || normal.length < 2)
+        throw new Error("Original cache catalog is unavailable");
+    return normal.map((info) => {
+        const entry = matchArchive(info, entries);
+        return entry
+            ? {
+                  ...info,
+                  archiveUrl: `${archive}/caches/${entry.scope}/${entry.id}/disk.zip`,
+                  keysUrl: `${archive}/caches/${entry.scope}/${entry.id}/keys.json`,
+              }
+            : {
+                  ...info,
+                  unavailableReason:
+                      "This snapshot is not on OpenRS2. Its original host does not allow browser downloads from this site. Please choose another snapshot.",
+              };
+    });
+}
 async function prepare() {
     await fs.access("build/index.html");
-    try {
-        await validateCache();
-    } catch {
-        await fs.mkdir(cacheDir, { recursive: true });
-        const [metadata, zip, keyEntries] = await Promise.all([
-            request(`${archive}/caches.json`).then((r) => r.json()),
-            request(`${archive}/caches/runescape/${CACHE_ID}/disk.zip`).then((r) =>
-                r.arrayBuffer(),
-            ),
-            request(`${archive}/caches/runescape/${CACHE_ID}/keys.json`).then((r) => r.json()),
-        ]);
-        const info = metadata.find((entry) => entry.id === CACHE_ID);
-        if (!info) throw new Error(`OpenRS2 cache ${CACHE_ID} is unavailable`);
-        // Extract only known data filenames. Never copy arbitrary archive paths or local files.
-        for (const entry of new AdmZip(Buffer.from(zip)).getEntries()) {
-            const name = entry.entryName.replace(/^cache\//, "");
-            if (!entry.isDirectory && cacheFile.test(name)) {
-                await fs.writeFile(path.join(cacheDir, name), entry.getData());
-            }
-        }
-        await fs.writeFile(
-            path.join(cacheDir, "keys.json"),
-            JSON.stringify(Object.fromEntries(keyEntries.map((e) => [e.group, e.key]))),
-        );
-        await fs.writeFile(path.join(cacheDir, "info.json"), JSON.stringify(info));
-    }
-    const info = await validateCache();
-    const output = path.join("build", "caches", CACHE_NAME);
-    await fs.mkdir(output, { recursive: true });
-    for (const name of await fs.readdir(cacheDir)) {
-        if (cacheFile.test(name) || name === "keys.json") {
-            await fs.copyFile(path.join(cacheDir, name), path.join(output, name));
-        }
-    }
-    await fs.writeFile(
-        "build/caches/caches.json",
-        JSON.stringify([
-            {
-                name: CACHE_NAME,
-                game: info.game,
-                environment: info.environment,
-                revision: 215,
-                timestamp: info.timestamp,
-                size: info.size,
-            },
-        ]),
-    );
+    const [normal, entries] = await Promise.all([
+        request(original + "caches.json"),
+        request(archive + "/caches.json"),
+    ]);
+    const catalog = makeCatalog(normal, entries);
+    // Also remove payloads left by any previous build. Pages contains metadata only.
+    await fs.rm("build/caches", { recursive: true, force: true });
+    await fs.mkdir("build/caches", { recursive: true });
+    await fs.writeFile("build/caches/caches.json", JSON.stringify(catalog));
     await fs.writeFile("build/.nojekyll", "");
-    console.log(`Pages artifact prepared with OpenRS2 cache ${CACHE_ID} (${CACHE_NAME}).`);
+    console.log(
+        `Pages catalog: ${catalog.length} snapshots (${
+            catalog.filter((c) => c.archiveUrl).length
+        } externally available). No cache payloads included.`,
+    );
 }
-
-prepare().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+if (require.main === module)
+    prepare().catch((error) => {
+        console.error(error);
+        process.exitCode = 1;
+    });
+module.exports = { cacheName, matchArchive, makeCatalog };

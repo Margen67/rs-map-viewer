@@ -37,6 +37,7 @@ jobs:
                   yarn tsc --noEmit
                   yarn test --watchAll=false --runInBand
                   node scripts/libsm64/smoke.cjs
+                  node --test scripts/prepare-pages.test.cjs
             - name: Build application
               run: yarn build
               env:
@@ -44,12 +45,7 @@ jobs:
                   # Existing repository ESLint warnings are not deployment errors.
                   # Type errors and compilation errors still fail the build.
                   CI: "false"
-            - name: Restore pinned RuneScape cache
-              uses: actions/cache@v4
-              with:
-                  path: .cache/pages/openrs2-1447
-                  key: pages-openrs2-1447-v1
-            - name: Prepare static cache data
+            - name: Prepare external cache catalog
               run: node scripts/prepare-pages.cjs
             - name: Upload Pages artifact
               uses: actions/upload-pages-artifact@v3

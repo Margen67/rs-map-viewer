@@ -139,3 +139,28 @@ test("visible upper-plane bridges remain solid when the selected map level is ze
     tiles[1][0][0].minLevel = 1;
     expect(buildMarioCollision({ levels: 2, tiles } as any, 0, 0, [])).toHaveLength(0);
 });
+
+test("non-blocking scenery contributes no collision triangles", () => {
+    const scene = { levels: 0, tiles: [] } as any;
+    const model = {
+        model: {
+            verticesX: [0, 128, 0],
+            verticesY: [0, 0, 0],
+            verticesZ: [0, 0, 128],
+            faceCount: 1,
+            indices1: [0],
+            indices2: [1],
+            indices3: [2],
+            faceColors3: [0],
+        },
+        sceneX: 0,
+        sceneZ: 0,
+        heightOffset: 0,
+        sceneHeight: 0,
+        contourGround: 0,
+        marioSolid: false,
+    } as any;
+    expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(0);
+    model.marioSolid = true;
+    expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
+});

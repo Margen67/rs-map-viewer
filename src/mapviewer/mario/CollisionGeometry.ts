@@ -1,5 +1,6 @@
 import { Scene } from "../../rs/scene/Scene";
 import { ContourGroundType, SceneModel } from "../webgl/buffer/SceneBuffer";
+import { isTinyMarioObstacle } from "./BlockingFlags";
 import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 /** Map-local RuneScape coordinates, 128 units per tile, Y pointing down. */
@@ -45,6 +46,7 @@ export function buildMarioCollision(
         }
     }
     for (const entry of models) {
+        if (entry.marioSolid === false || isTinyMarioObstacle(entry.model)) continue;
         // Scene models are already visibility-filtered, including upper-plane bridges.
         const model = entry.model;
         const ys = model.contourVerticesY ?? model.verticesY;

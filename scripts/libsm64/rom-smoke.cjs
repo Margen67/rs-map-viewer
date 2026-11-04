@@ -90,6 +90,31 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
                 "slanted wall blocks from either side",
             );
         }
+        // A finite wall below Mario must not become an infinitely tall blocker.
+        surfaces([
+            ...floor.map((value, i) => (i % 3 === 1 ? 600 : value)),
+            -1000,
+            0,
+            300,
+            1000,
+            300,
+            300,
+            1000,
+            0,
+            300,
+            -1000,
+            0,
+            300,
+            -1000,
+            300,
+            300,
+            1000,
+            300,
+            300,
+        ]);
+        assert.ok(m._rs64_spawn(0, 630, 0) >= 0);
+        for (let i = 0; i < 90; i++) tick(0, -1);
+        assert.ok(position()[2] > 400, "walks above the top of a finite wall");
         surfaces(floor);
         m._rs64_spawn(0, 30, 0);
         for (let i = 0; i < 90; i++) tick();

@@ -11,6 +11,7 @@ import { LocEntity } from "../../../rs/scene/entity/LocEntity";
 import { TextureLoader } from "../../../rs/texture/TextureLoader";
 import { NpcSpawn, getMapNpcSpawns } from "../../data/npc/NpcSpawn";
 import { ObjSpawn, getMapObjSpawns } from "../../data/obj/ObjSpawn";
+import { blocksMario, isTinyMarioObstacle } from "../../mario/BlockingFlags";
 import { buildMarioCollision, indexMarioCollision } from "../../mario/CollisionGeometry";
 import { loadMinimapBlob } from "../../worker/MinimapData";
 import { RenderDataLoader, RenderDataResult } from "../../worker/RenderDataLoader";
@@ -307,7 +308,12 @@ function addLocAnimationFrames(
     const frames = new Array<DrawRange>(frameCount);
     const framesAlpha = new Array<DrawRange>(frameCount);
     let alphaFrameCount = 0;
-    const marioCollisionFrames: Int32Array[] | undefined = locType.clipType > 0 ? [] : undefined;
+    const marioCollisionFrames: Int32Array[] | undefined = blocksMario(
+        entity.type,
+        locType.clipType,
+    )
+        ? []
+        : undefined;
     for (let i = 0; i < frameCount; i++) {
         const model = locModelLoader.getModelAnimated(
             locType,
@@ -318,7 +324,7 @@ function addLocAnimationFrames(
         );
         if (marioCollisionFrames) {
             const collision: number[] = [];
-            if (model)
+            if (model && !isTinyMarioObstacle(model))
                 for (let f = 0; f < model.faceCount; f++) {
                     if (model.faceColors3[f] === -2 || (model.faceAlphas?.[f] ?? 0) > 240) continue;
                     for (const vertex of [
@@ -468,6 +474,7 @@ function addLocEntities(
                 sceneHeight: centerHeight,
                 lowDetail,
                 forceMerge: locType.contourGroundType > 1,
+                marioSolid: blocksMario(type, locType.clipType),
                 interactId: locType.id,
             });
         }

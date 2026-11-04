@@ -62,7 +62,10 @@ reloading the map. RuneScape death animations and effects are not used.
 
 Terrain, static geometry, and solid animated scenery provide collision. Animated
 colliders follow the rendered frame and terrain contour, and Mario shares the
-map's depth buffer. Water volumes and camera-wall collision are not implemented;
+map's depth buffer. Static and animated objects follow the scene's player-blocking
+flags. As a fallback, objects no taller than 16 map units and no wider than 32
+units on either horizontal axis are excluded (128 units = one tile). Walls have
+finite height; hidden NPCs do not create contact blockers. Water volumes and camera-wall collision are not implemented;
 moving platforms do not yet carry Mario automatically. Older caches may be needed when newer revisions
 use opcodes the viewer does not yet support; revision 215 (2023-07-26) was used
 for integration checks.
@@ -122,11 +125,14 @@ with the base path supplied by GitHub Pages. Existing ESLint warnings remain
 visible without failing the production build; test, type, and compilation errors
 still fail deployment. The checked-in libsm64 browser runtime is used directly.
 
-`scripts/prepare-pages.cjs` downloads OpenRS2 cache **1447**, revision **215**
-(2023-07-26), caches it between builds, and copies only map data and keys into
-the Pages artifact. This is the compatible cache used for Mario integration
-checks. The published artifact is about 143 MiB and contains no SM64 ROM assets.
-Users select their own ROM locally after opening the site.
+`scripts/prepare-pages.cjs` publishes the complete normal viewer catalog (currently
+972 snapshots). Available snapshots download on demand from OpenRS2 and remain in
+the browser cache. Currently 954 have an exact OpenRS2 match; the remaining 18
+stay listed with an availability message because their original host blocks
+cross-origin browser reads. No cache payloads are committed or included in Pages.
+Mario's audio and effects come from the ROM users select locally; no ROM assets
+are published. Large snapshots use one worker on hosts without shared memory to
+avoid making four copies of cache data.
 
 To reproduce a project-site build locally:
 

@@ -7,6 +7,9 @@ export type CacheInfo = {
     revision: number;
     timestamp: string;
     size: number;
+    archiveUrl?: string;
+    keysUrl?: string;
+    unavailableReason?: string;
 };
 
 export function sortCachesNewToOld(caches: CacheInfo[]): void {

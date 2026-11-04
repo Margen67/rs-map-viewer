@@ -26,7 +26,9 @@ WebFont.load({
 
 const cachesPromise = fetchCacheList();
 
-const workerPool = RenderDataWorkerPool.create(isWallpaperEngine ? 1 : 4);
+const workerPool = RenderDataWorkerPool.create(
+    isWallpaperEngine || !window.crossOriginIsolated ? 1 : 4,
+);
 
 function MapViewerApp() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -92,7 +94,12 @@ function MapViewerApp() {
         if (isIos) {
             setErrorMessage("iOS is not supported.");
         } else {
-            load().catch(console.error);
+            load().catch((error) => {
+                if (error.name !== "AbortError") {
+                    setDownloadProgress(undefined);
+                    setErrorMessage(error.message);
+                }
+            });
         }
 
         return () => {

@@ -46,6 +46,8 @@ export const MapViewerControls = memo(
             mapViewer.camera.projectionType,
         );
 
+        const [cacheError, setCacheError] = useState<string>();
+
         const [isExportingSprites, setExportingSprites] = useState(false);
         const [isExportingTextures, setExportingTextures] = useState(false);
 
@@ -304,13 +306,25 @@ export const MapViewerControls = memo(
                                     (cache) => cache.name === v,
                                 );
                                 if (v !== mapViewer.loadedCache.info.name && cacheInfo) {
-                                    const [loadedCache, npcSpawns] = await Promise.all([
-                                        loadCacheFiles(cacheInfo, undefined, setDownloadProgress),
-                                        fetchNpcSpawns(getNpcSpawnsUrl(cacheInfo)),
-                                    ]);
-                                    mapViewer.npcSpawns = npcSpawns;
-                                    mapViewer.initCache(loadedCache);
-                                    setDownloadProgress(undefined);
+                                    setCacheError(undefined);
+                                    try {
+                                        const [loadedCache, npcSpawns] = await Promise.all([
+                                            loadCacheFiles(
+                                                cacheInfo,
+                                                undefined,
+                                                setDownloadProgress,
+                                            ),
+                                            fetchNpcSpawns(getNpcSpawnsUrl(cacheInfo)),
+                                        ]);
+                                        mapViewer.npcSpawns = npcSpawns;
+                                        mapViewer.initCache(loadedCache);
+                                    } catch (error) {
+                                        setCacheError(
+                                            error instanceof Error ? error.message : String(error),
+                                        );
+                                    } finally {
+                                        setDownloadProgress(undefined);
+                                    }
                                 }
                             },
                         },
@@ -461,12 +475,32 @@ export const MapViewerControls = memo(
         );
 
         return (
-            <Leva
-                titleBar={{ filter: false }}
-                collapsed={true}
-                hideCopyButton={true}
-                hidden={hidden}
-            />
+            <>
+                {cacheError && !hidden && (
+                    <div
+                        role="alert"
+                        style={{
+                            position: "absolute",
+                            top: 12,
+                            left: 12,
+                            maxWidth: 360,
+                            padding: 12,
+                            background: "#222",
+                            color: "white",
+                            zIndex: 1001,
+                        }}
+                    >
+                        {cacheError}
+                        <button onClick={() => setCacheError(undefined)}>Dismiss</button>
+                    </div>
+                )}
+                <Leva
+                    titleBar={{ filter: false }}
+                    collapsed={true}
+                    hideCopyButton={true}
+                    hidden={hidden}
+                />
+            </>
         );
     },
 );

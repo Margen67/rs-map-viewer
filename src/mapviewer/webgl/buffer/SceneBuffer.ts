@@ -40,6 +40,7 @@ export type SceneModel = {
     sceneHeight: number;
     lowDetail: boolean;
     forceMerge: boolean;
+    marioSolid?: boolean;
 } & ModelInfo;
 
 export type ModelMergeGroup = {

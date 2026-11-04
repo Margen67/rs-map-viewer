@@ -1,6 +1,7 @@
 import { CacheFiles, ProgressListener } from "../rs/cache/CacheFiles";
 import { CacheInfo, getLatestCache } from "../rs/cache/CacheInfo";
 import { CacheType, detectCacheType } from "../rs/cache/CacheType";
+import { loadCacheArchive } from "./CacheArchive";
 
 const CACHE_PATH = `${process.env.PUBLIC_URL || ""}/caches/`;
 
@@ -38,6 +39,11 @@ export async function loadCacheFiles(
     signal?: AbortSignal,
     progressListener?: ProgressListener,
 ): Promise<LoadedCache> {
+    if (info.unavailableReason) throw new Error(`${info.name}: ${info.unavailableReason}`);
+    if (info.archiveUrl) {
+        const loaded = await loadCacheArchive(info, signal, progressListener);
+        return { info, type: detectCacheType(info), ...loaded };
+    }
     const cachePath = CACHE_PATH + info.name + "/";
 
     const xteasPromise = fetchXteas(cachePath + "keys.json", signal);

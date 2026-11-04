@@ -7,6 +7,7 @@ import { SceneLoc } from "../../../rs/scene/SceneLoc";
 import { getIdFromTag } from "../../../rs/scene/entity/EntityTag";
 import { LocEntity } from "../../../rs/scene/entity/LocEntity";
 import { INVALID_HSL_COLOR } from "../../../rs/util/ColorUtil";
+import { blocksMario } from "../../mario/BlockingFlags";
 import { InteractType } from "../../webgl/InteractType";
 import { ContourGroundType, SceneModel } from "../buffer/SceneBuffer";
 import { SceneLocEntity } from "./SceneLocEntity";
@@ -84,6 +85,7 @@ export function createSceneModel(
         sceneHeight,
         lowDetail: isLowDetail(scene, level, tileX, tileY, locType, type),
         forceMerge: locType.contourGroundType > 1,
+        marioSolid: blocksMario(type, locType.clipType),
 
         sceneX,
         sceneZ,
