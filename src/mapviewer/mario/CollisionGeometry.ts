@@ -59,6 +59,8 @@ export function buildMarioCollision(
             }
         }
     }
+    // Terrain stays exactly on its rendered triangles; never add raised slope platforms.
+    const terrain = vertices.splice(0);
     for (const entry of models) {
         const walkable = entry.marioWalkable || broadWalkable(entry.model);
         if ((entry.marioSolid === false && !walkable) || tinyScenery(entry.model, walkable))
@@ -116,7 +118,7 @@ export function buildMarioCollision(
             } else add(a, b, c);
         }
     }
-    return withSupportCaps(new Int32Array(vertices));
+    return new Int32Array([...terrain, ...withSupportCaps(new Int32Array(vertices))]);
 }
 
 export interface CollisionSquare {

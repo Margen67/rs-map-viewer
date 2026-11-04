@@ -223,3 +223,28 @@ test("non-blocking paving supports feet and the wilderness's untextured gold sur
     buildMarioCollision(scene, 0, 0, [model], other, true, 3100, 3450);
     expect(other).toHaveLength(0);
 });
+
+test("steep terrain exports only its rendered slope, with no flattened support above it", () => {
+    const tiles = Array.from({ length: 64 }, () => new Array(64));
+    tiles[0][0] = {
+        minLevel: 0,
+        tileModel: {
+            faces: [
+                {
+                    vertices: [
+                        { x: 0, y: 0, z: 0 },
+                        { x: 128, y: -256, z: 0 },
+                        { x: 0, y: 0, z: 128 },
+                    ],
+                },
+            ],
+        },
+    };
+    const collision = buildMarioCollision({ levels: 1, tiles: [tiles] } as any, 0, 0, []);
+    expect(collision).toHaveLength(9);
+    expect(
+        Array.from(collision)
+            .filter((_, i) => i % 3 === 1)
+            .sort((a, b) => a - b),
+    ).toEqual([-256, 0, 0]);
+});

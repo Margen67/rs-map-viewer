@@ -34,6 +34,7 @@ float rs64_movement_scale(void) {
 static float water_bottom = -11000;
 static int has_water = 0;
 static struct SM64SurfaceCollisionData *burning_floor = NULL;
+static int16_t burning_floor_type = SURFACE_DEFAULT;
 static int16_t audio[544 * 2 * 2];
 static uint8_t effects[640 * 32 * 4];
 
@@ -90,12 +91,13 @@ void rs64_song(int sequence) {
 }
 void rs64_environment(float water, float bottom, float lava) {
     if (mario < 0) return;
-    if (burning_floor) { burning_floor->type = SURFACE_NOT_SLIPPERY; burning_floor = NULL; }
+    if (burning_floor) { burning_floor->type = burning_floor_type; burning_floor = NULL; }
     sm64_set_mario_water_level(mario, (int)water);
     has_water = water > -10000;
     water_bottom = bottom;
     struct MarioState *m = &g_state->mgMarioStateVal;
     if (lava > -10000 && m->floor && fabsf(m->floorHeight - lava) < 8) {
+        burning_floor_type = m->floor->type;
         burning_floor = m->floor;
         burning_floor->type = SURFACE_BURNING;
     }
@@ -116,7 +118,8 @@ int rs64_surfaces(const int32_t *vertices, uint32_t count) {
     struct SM64Surface *surfaces = calloc(count, sizeof(*surfaces));
     if (count && !surfaces) return 0;
     for (uint32_t i = 0; i < count; ++i) {
-        surfaces[i].type = SURFACE_NOT_SLIPPERY;
+        /* Ordinary SM64 ground: gentle slopes grip, steep floors slide (~38 degrees). */
+        surfaces[i].type = SURFACE_DEFAULT;
         surfaces[i].terrain = TERRAIN_GRASS;
         memcpy(surfaces[i].vertices, vertices + i * 9, 9 * sizeof(int32_t));
     }

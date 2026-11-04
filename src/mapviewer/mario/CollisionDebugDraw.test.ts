@@ -18,3 +18,10 @@ test("wireframe matches native coordinates, winding classifications, and all thr
     );
     expect(collisionDebugLines(new Int32Array(9), 0, 0, 1).positions).toHaveLength(0);
 });
+
+test("debug draws steep upward slopes as floors using the native near-vertical cutoff", () => {
+    const lines = collisionDebugLines(new Int32Array([0, 0, 0, 128, 256, 0, 0, 0, -128]), 0, 0, 1);
+    expect(Array.from(lines.colors.subarray(0, 3))).toEqual(
+        Array.from(new Float32Array([0.2, 1, 0.3])),
+    );
+});

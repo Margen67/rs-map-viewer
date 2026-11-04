@@ -71,7 +71,7 @@ camera use the same interpolated position between the unchanged 30 Hz physics
 steps. Turn it off to inspect raw simulation poses.
 
 Enable **Show collision** in Mario controls to overlay the mesh wireframe. Green
-marks floors, orange walls and steep slopes, and purple ceilings. **Show through
+marks floors and slopes, orange near-vertical walls, and purple ceilings. **Show through
 scenery** reveals occluded triangles, including the seabed. In Mario mode this
 uses the exact streamed native mesh and updates with doors and animations; in
 camera mode it previews nearby collision without needing a ROM. This overlay
@@ -79,7 +79,9 @@ covers mesh collision, not NPC combat hitboxes. **Water and lava** shows actual
 liquid surface triangles in cyan and red. RuneScape navigation flags are no longer
 shown in these colors and never create Mario collision.
 
-Ordinary floors use SM64's non-slippery surface class. Collision keeps one
+Ordinary floors use SM64's default surface class: gentle slopes grip, and steep
+slopes slide at the native threshold of roughly 38 degrees. The native near-vertical
+wall cutoff (normal Y ±0.01) is preserved. Collision keeps one
 outward face per triangle and handles slanted walls and thin fences from either
 side. Dust, stomp smoke, sparkles, and poof clouds are extracted from your ROM at
 runtime; no extracted assets are included in the site.
@@ -96,8 +98,9 @@ map's depth buffer. Static and animated objects follow the scene's player-blocki
 flags, without collision generated from pathfinding barriers. Roughly 1/8-tile
 high clutter is omitted, including low grass, debris, pebbles and lava bubbles;
 roofs, broad paving and genuinely thin walkable platforms retain support.
-Walls/undersides retain their original geometry and gain bounded upward support
-at their tops, rather than extending a collider infinitely upward. Non-blocking
+Terrain uses the original rendered triangles without raised support caps. Scenery
+wall tops and roof undersides retain bounded support; sloped faces are never
+flattened into platforms. Non-blocking
 paving provides foot support without adding side walls.
 Only visible mesh faces collide; steep surfaces and scenery have finite bounds.
 Hidden NPCs do not create contact blockers. Vanilla OSRS water textures provide

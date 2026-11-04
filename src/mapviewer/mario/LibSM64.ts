@@ -52,7 +52,7 @@ declare global {
 
 let loadingScript: Promise<void> | undefined;
 // Keep the native ABI pair together across GitHub Pages/browser caches.
-const RUNTIME_VERSION = "smooth-rom-audio-5";
+const RUNTIME_VERSION = "native-slopes-6";
 export async function createLibSM64(): Promise<LibSM64> {
     const base = `${process.env.PUBLIC_URL || ""}/libsm64/`;
     if (!window.createLibSM64) {

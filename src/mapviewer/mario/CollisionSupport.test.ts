@@ -22,3 +22,8 @@ test("low grass and rubble are omitted while paving and thin roofs are preserved
     expect(broadWalkable(model(128, 6, 128))).toBe(true);
     expect(tinyScenery(model(16, 2, 16), true)).toBe(false);
 });
+
+test("upward-facing steep scenery slopes keep their shape without raised caps", () => {
+    const steep = new Int32Array([0, 0, 0, 128, -256, 0, 0, 0, 128]);
+    expect(withSupportCaps(steep)).toEqual(steep);
+});

@@ -1,4 +1,4 @@
-"""Adapt the pinned native collision classifier to RuneScape's slanted wall meshes."""
+"""Keep native slope classification while bounding imported thin-wall contacts."""
 from pathlib import Path
 import sys
 
@@ -11,14 +11,14 @@ text = text.replace(include, include + """
 static struct SM64SurfaceCollisionData viewer_wall_contacts[128];
 static uint32_t viewer_wall_contact_cursor = 0;
 """)
-for old, new in [
-    ("surf->normal.y >= -0.01f", "surf->normal.y >= -0.5f"),
-    ("surf->normal.y <= 0.01f", "surf->normal.y <= 0.5f"),
-    ("surf->normal.y < -0.01f || surf->normal.y > 0.01f", "surf->normal.y < -0.5f || surf->normal.y > 0.5f"),
+# Retain upstream's floor/ceiling/wall threshold: slopes are floors, not walls.
+for rule in [
+    "surf->normal.y >= -0.01f",
+    "surf->normal.y <= 0.01f",
+    "surf->normal.y < -0.01f || surf->normal.y > 0.01f",
 ]:
-    if text.count(old) != 1:
-        raise RuntimeError(f"Pinned collision source changed: {old}")
-    text = text.replace(old, new)
+    if text.count(rule) != 1:
+        raise RuntimeError(f"Pinned collision source changed: {rule}")
 # Resolve each wall against the result of the previous wall, avoiding seam over-correction.
 start = text.index("static s32 find_wall_collisions_from_list")
 head, wall = text[:start], text[start:]
@@ -26,7 +26,7 @@ old = "surf = loaded_surface_iter_get_at_index( i, j );"
 assert wall.count(old) == 1
 wall = wall.replace(old, old + "\n        x = data->x; z = data->z;")
 # Test the closest point on the actual triangle, including its vertical extent.
-# The vanilla axis projection assumes vertical walls and over-rejects steep slopes.
+# Preserve finite triangle bounds and two-sided contacts for imported walls.
 a = wall.index("        px = x;")
 b = wall.index("        // Ignore camera only surfaces.", a)
 wall = wall[:a] + """        f32 horizontal2 = surf->normal.x * surf->normal.x + surf->normal.z * surf->normal.z;

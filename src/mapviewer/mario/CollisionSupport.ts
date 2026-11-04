@@ -1,4 +1,4 @@
-/** Bounded upward support for wall tops and one-sided undersides, retaining their original faces. */
+/** Scenery-only support for near-vertical wall tops and one-sided undersides; never flatten slopes. */
 export function withSupportCaps(source: Int32Array): Int32Array {
     const output = Array.from(source);
     const seen = new Set<string>();
@@ -25,8 +25,8 @@ export function withSupportCaps(source: Int32Array): Int32Array {
             ny = az * bx - ax * bz,
             nz = ax * by - ay * bx,
             normal = -ny / Math.hypot(nx, ny, nz);
-        if (!Number.isFinite(normal) || normal > 0.5) continue;
-        if (normal < -0.5) {
+        if (!Number.isFinite(normal) || normal > 0.01) continue;
+        if (normal < -0.01) {
             add(
                 a.map((v, j) => (j === 1 ? v - 1 : v)),
                 b.map((v, j) => (j === 1 ? v - 1 : v)),

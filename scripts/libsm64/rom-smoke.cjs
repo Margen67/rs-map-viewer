@@ -90,6 +90,26 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
                 `idle grip on slope ${slope}`,
             );
         }
+        // Stock floor behavior: steeper surfaces slide, but are still finite floors.
+        for (const gradient of [1.0, 2.0]) {
+            const tilted = floor.map((value, i) =>
+                i % 3 === 1 ? Math.round(floor[i - 1] * gradient) : value,
+            );
+            surfaces(tilted);
+            assert.ok(
+                Math.abs(m._rs64_floor(100, 100 * gradient + 100, 0) - 100 * gradient) < 1,
+                "steep floor follows its actual plane",
+            );
+            assert.ok(m._rs64_spawn(500, 500 * gradient + 30, 0) >= 0);
+            const start = position();
+            let slid = false;
+            for (let i = 0; i < 60; i++) {
+                tick();
+                if (m._rs64_action() & 0x40000) slid = true;
+            }
+            assert.ok(slid, `native slide action on gradient ${gradient}`);
+            assert.ok(position()[0] < start[0] - 100, `downhill movement on gradient ${gradient}`);
+        }
         surfaces([
             ...floor,
             -1000,
@@ -97,7 +117,7 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
             300,
             1000,
             300,
-            400,
+            301,
             1000,
             0,
             300,
@@ -106,10 +126,10 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
             300,
             -1000,
             300,
-            400,
+            301,
             1000,
             300,
-            400,
+            301,
         ]);
         for (const [start, direction] of [
             [0, -1],
@@ -120,7 +140,7 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
             for (let i = 0; i < 90; i++) tick(0, direction);
             assert.ok(
                 start === 0 ? position()[2] < 290 : position()[2] > 340,
-                "slanted wall blocks from either side",
+                "near-vertical wall blocks from either side",
             );
         }
         // A finite wall below Mario must not become an infinitely tall blocker.
@@ -365,7 +385,7 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
             "upward support above a ceiling prevents roof leakage",
         );
         console.log(
-            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed, shore jumps, movement speed, separate mixer gains, support caps, and lava burn passed.",
+            "ROM checks passed: 20 effect frames, slope grip and native sliding, two-sided near-vertical walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed, shore jumps, movement speed, separate mixer gains, support caps, and lava burn passed.",
         );
     } finally {
         m._rs64_terminate();

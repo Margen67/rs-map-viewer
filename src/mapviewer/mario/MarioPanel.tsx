@@ -180,7 +180,8 @@ export function MarioPanel({ renderer }: { renderer: MapViewerRenderer }): JSX.E
                                 Water and lava
                             </label>
                             <p>
-                                Green: floors · Orange: walls / steep slopes · Purple: ceilings.
+                                Green: floors / slopes · Orange: near-vertical walls · Purple:
+                                ceilings.
                                 <br />
                                 {mario.showMapCollision && (
                                     <>

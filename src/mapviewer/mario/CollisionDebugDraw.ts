@@ -23,7 +23,11 @@ export function collisionDebugLines(
         const length = Math.hypot(nx, ny, nz);
         if (!length) continue;
         const color =
-            ny / length > 0.5 ? [0.2, 1, 0.3] : ny / length < -0.5 ? [0.8, 0.4, 1] : [1, 0.55, 0.1];
+            ny / length > 0.01
+                ? [0.2, 1, 0.3]
+                : ny / length < -0.01
+                ? [0.8, 0.4, 1]
+                : [1, 0.55, 0.1];
         for (const v of [0, 1, 1, 2, 2, 0]) {
             positions.push(
                 vertices[i + v * 3] / units + originX,
