@@ -22,6 +22,7 @@ test("camera mode retains validated ROM in memory and resume chooses another son
         _rs64_effects: () => 0,
         _rs64_music: jest.fn(),
         _rs64_song: jest.fn(),
+        _rs64_volumes: jest.fn(),
         _rs64_speed: jest.fn(),
         _rs64_terminate: jest.fn(),
     };

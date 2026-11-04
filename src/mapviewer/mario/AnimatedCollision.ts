@@ -1,5 +1,6 @@
 import { AnimationFrames } from "../webgl/AnimationFrames";
 import { ContourGroundType } from "../webgl/buffer/SceneBuffer";
+import { withSupportCaps } from "./CollisionSupport";
 
 export interface AnimatedCollisionInfo {
     sceneX: number;
@@ -46,5 +47,5 @@ export function animatedMarioCollision(
             output.push(vx, Math.round(frame[i + 1] - info.heightOffset + h), vz);
         }
     }
-    return new Int32Array(output);
+    return withSupportCaps(new Int32Array(output));
 }

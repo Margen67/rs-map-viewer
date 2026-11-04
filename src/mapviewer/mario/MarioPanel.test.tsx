@@ -33,15 +33,28 @@ test("mute and music checkboxes immediately reflect the selected audio state", (
             setSpeed: jest.fn(),
             setSize: jest.fn(),
             setVolume: jest.fn(),
+            musicVolume: 0.3,
+            setMusicVolume: jest.fn(),
+            chooseSong: jest.fn(),
+            cycleSong: jest.fn(),
+            interpolation: true,
         },
     }) as MapViewerRenderer;
     render(<MarioPanel renderer={renderer} />);
     fireEvent.change(screen.getByLabelText("Mario size"), { target: { value: "2" } });
     expect((renderer as WebGLMapViewerRenderer).mario.setSize).toHaveBeenCalledWith(2);
-    fireEvent.change(screen.getByLabelText("Sound volume"), { target: { value: "35" } });
+    fireEvent.change(screen.getByLabelText("Sound effects volume"), { target: { value: "35" } });
     expect((renderer as WebGLMapViewerRenderer).mario.setVolume).toHaveBeenCalledWith(0.35);
     fireEvent.change(screen.getByLabelText("Mario speed"), { target: { value: "2" } });
     expect((renderer as WebGLMapViewerRenderer).mario.setSpeed).toHaveBeenCalledWith(2);
+    fireEvent.change(screen.getByLabelText("Music volume"), { target: { value: "20" } });
+    expect((renderer as WebGLMapViewerRenderer).mario.setMusicVolume).toHaveBeenCalledWith(0.2);
+    fireEvent.change(screen.getByLabelText("SM64 song"), { target: { value: "5" } });
+    expect((renderer as WebGLMapViewerRenderer).mario.chooseSong).toHaveBeenCalledWith(5);
+    fireEvent.click(screen.getByLabelText("Next song"));
+    expect((renderer as WebGLMapViewerRenderer).mario.cycleSong).toHaveBeenCalledWith(1);
+    fireEvent.click(screen.getByLabelText("Mario interpolation"));
+    expect((renderer as WebGLMapViewerRenderer).mario.interpolation).toBe(false);
     fireEvent.click(screen.getByLabelText("Show collision"));
     expect((renderer as WebGLMapViewerRenderer).mario.showCollision).toBe(true);
     expect(screen.getByText(/1 streamed collision triangles/)).toBeInTheDocument();

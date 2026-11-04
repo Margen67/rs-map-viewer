@@ -20,6 +20,7 @@ fi
 make -C "$source_dir" src/decomp/mario/geo.inc.c
 python3 scripts/libsm64/patch-collision.py "$source_dir"
 python3 scripts/libsm64/patch-movement.py "$source_dir"
+python3 scripts/libsm64/patch-audio.py "$source_dir"
 sources=()
 for dir in src src/decomp src/decomp/engine src/decomp/include/PR src/decomp/game \
     src/decomp/pc src/decomp/pc/audio src/decomp/mario src/decomp/tools src/decomp/audio; do
@@ -28,6 +29,7 @@ for dir in src src/decomp src/decomp/engine src/decomp/include/PR src/decomp/gam
             file="$source_dir/src/decomp/engine/.viewer-surface-collision.c"
         fi
         case "$file" in
+            */audio/effects.c) file="$(dirname "$file")/.viewer-effects.c" ;;
             */game/mario_step.c|*/game/mario_actions_submerged.c)
                 file="$(dirname "$file")/.viewer-$(basename "$file")" ;;
         esac
@@ -42,6 +44,6 @@ emcc "${sources[@]}" scripts/libsm64/bridge.c \
     -sMODULARIZE=1 -sEXPORT_NAME=createLibSM64 -sENVIRONMENT=web,node \
     -sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=0 \
     '-sEXPORTED_RUNTIME_METHODS=["HEAPU8","HEAP32","HEAPF32","HEAP16"]' \
-    '-sEXPORTED_FUNCTIONS=["_malloc","_free","_rs64_init","_rs64_terminate","_rs64_surfaces","_rs64_floor","_rs64_spawn","_rs64_tick","_rs64_move","_rs64_position","_rs64_health","_rs64_triangles","_rs64_buffer","_rs64_audio_buffer","_rs64_audio_tick","_rs64_music","_rs64_song","_rs64_speed","_rs64_shore_jump","_rs64_environment","_rs64_velocity","_rs64_particles","_rs64_action","_rs64_effects","_rs64_attack","_rs64_stomp","_rs64_enemy_sound","_rs64_door_sound","_rs64_push"]' \
+    '-sEXPORTED_FUNCTIONS=["_malloc","_free","_rs64_init","_rs64_terminate","_rs64_surfaces","_rs64_floor","_rs64_spawn","_rs64_tick","_rs64_move","_rs64_position","_rs64_health","_rs64_triangles","_rs64_buffer","_rs64_audio_buffer","_rs64_audio_tick","_rs64_music","_rs64_volumes","_rs64_song","_rs64_speed","_rs64_shore_jump","_rs64_environment","_rs64_velocity","_rs64_particles","_rs64_action","_rs64_effects","_rs64_attack","_rs64_stomp","_rs64_enemy_sound","_rs64_door_sound","_rs64_push"]' \
     -o public/libsm64/libsm64.js
 cp "$source_dir/LICENSE.md" public/libsm64/LICENSE.md

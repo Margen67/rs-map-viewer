@@ -26,7 +26,7 @@ import { MapViewerRenderer } from "../MapViewerRenderer";
 import { MapViewerRendererType, WEBGL } from "../MapViewerRenderers";
 import { CollisionDebugDraw } from "../mario/CollisionDebugDraw";
 import { collectMarioSurfaces } from "../mario/CollisionGeometry";
-import { mapCollisionDebugLines } from "../mario/MapCollisionDebug";
+import { liquidDebugLines } from "../mario/LiquidDebug";
 import { MarioNpcTarget } from "../mario/MarioCombat";
 import { MarioController } from "../mario/MarioController";
 import { MarioDraw } from "../mario/MarioDraw";
@@ -1069,12 +1069,7 @@ export class WebGLMapViewerRenderer extends MapViewerRenderer<WebGLMapSquare> {
             if (flagKey !== this.collisionFlagKey) {
                 this.collisionFlagKey = flagKey;
                 this.collisionFlagLines = this.mario.showMapCollision
-                    ? mapCollisionDebugLines(
-                          this.mapManager.mapSquares.values(),
-                          flagX,
-                          flagZ,
-                          this.maxLevel,
-                      )
+                    ? liquidDebugLines(this.mapManager.mapSquares.values(), flagX, flagZ)
                     : undefined;
             }
             this.collisionDebugDraw.draw(

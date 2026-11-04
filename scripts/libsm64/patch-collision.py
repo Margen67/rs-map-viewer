@@ -46,6 +46,12 @@ wall = wall[:a] + """        f32 horizontal2 = surf->normal.x * surf->normal.x +
         if (determinant <= 0) continue;
         f64 u = (bb*ac - ab*bc) / determinant, v = (aa*bc - ab*ac) / determinant;
         if (u < -0.00001 || v < -0.00001 || u + v > 1.00001) continue;
+        /* Step onto a real bounded support cap instead of treating its low side as an infinite barrier. */
+        if (gMarioState && surf->upperY - 5 <= gMarioState->pos[1] + 78) {
+            struct SM64SurfaceCollisionData *support = NULL;
+            f32 supportHeight = find_floor(qx, gMarioState->pos[1] + 78, qz, &support);
+            if (support && supportHeight >= gMarioState->pos[1] - 2 && fabsf(supportHeight - (surf->upperY - 5)) < 4) continue;
+        }
 
 """ + wall[b:]
 # RuneScape also uses single-plane fences. Resolve to the side Mario approached,

@@ -30,3 +30,19 @@ test("only visible textured water receives a finite seabed; navigation flags can
     expect(liquidKind(56)).toBe(2);
     expect(liquidKind(2)).toBe(0);
 });
+
+test("water-edge tolerance has finite overlapping seabed support", () => {
+    const tiles = Array.from({ length: 64 }, () => new Array(64));
+    tiles[0][0] = { minLevel: 0, tileModel: { faces: [{ vertices }] } };
+    const liquids: number[] = [];
+    const collision = buildMarioCollision({ levels: 1, tiles: [tiles] } as any, 0, 0, [], liquids);
+    const map = {
+        mapX: 0,
+        mapY: 0,
+        marioCollision: collision,
+        marioLiquids: new Int32Array(liquids),
+    };
+    expect(sampleMarioEnvironment([map], 1.01, 1, 0.25).water).toBe(0);
+    expect(Math.max(...Array.from(collision).filter((_, i) => i % 3 === 0))).toBeGreaterThan(128);
+    expect(sampleMarioEnvironment([map], 1.1, 1, 0.25).water).toBe(-11000);
+});

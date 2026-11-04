@@ -130,6 +130,8 @@ export class MapViewer {
         }
 
         params["v"] = 1;
+        const rom = new URLSearchParams(window.location.search).get("rom");
+        if (rom) params["rom"] = rom;
 
         return params;
     }

@@ -19,6 +19,9 @@ static struct SM64MarioGeometryBuffers geometry = {positions, normals, colors, u
 static struct SM64MarioState state;
 static int32_t mario = -1;
 static int song = 3;
+static float effects_volume = .5f, music_volume = .3f;
+void rs64_volumes(float effects, float music) {effects_volume=fminf(1,fmaxf(0,effects));music_volume=fminf(1,fmaxf(0,music));}
+float rs64_sequence_volume(int player) {return player == 2 ? effects_volume : music_volume;}
 static float movement_scale = 1.0f;
 void rs64_speed(float value) { movement_scale = fminf(3.0f, fmaxf(0.25f, value)); }
 static float shore_clearance = -11000;

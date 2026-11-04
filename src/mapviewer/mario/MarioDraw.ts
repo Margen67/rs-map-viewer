@@ -46,6 +46,7 @@ export class MarioDraw {
     private array: VertexArray;
     private texture: Texture;
     private drawCall: DrawCall;
+    private interpolated = new Float32Array(0);
 
     constructor(
         readonly app: App,
@@ -82,7 +83,20 @@ export class MarioDraw {
         if (!count) return;
         this.buffers.forEach((buffer, i) => {
             const start = m._rs64_buffer(i) / 4;
-            buffer.data(m.HEAPF32.subarray(start, start + count * (i === 3 ? 2 : 3)));
+            if (
+                i === 0 &&
+                mario.posePositions?.length === count * 3 &&
+                mario.previousPosePositions?.length === count * 3
+            ) {
+                if (this.interpolated.length !== count * 3)
+                    this.interpolated = new Float32Array(count * 3);
+                for (let j = 0; j < count * 3; j++)
+                    this.interpolated[j] =
+                        mario.previousPosePositions[j] +
+                        (mario.posePositions[j] - mario.previousPosePositions[j]) *
+                            mario.renderAlpha;
+                buffer.data(this.interpolated);
+            } else buffer.data(m.HEAPF32.subarray(start, start + count * (i === 3 ? 2 : 3)));
         });
         this.app.disable(PicoGL.CULL_FACE);
         this.drawCall

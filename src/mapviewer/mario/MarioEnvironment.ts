@@ -20,25 +20,58 @@ export function sampleMarioEnvironment(
     for (const map of maps) {
         const px = (x - map.mapX * 64) * 128,
             pz = (z - map.mapY * 64) * 128;
-        const data = map.marioLiquids;
-        if (!data) continue;
-        for (let i = 0; i < data.length; i += 10) {
-            const ax = data[i + 1],
-                az = data[i + 3],
-                bx = data[i + 4],
-                bz = data[i + 6],
-                cx = data[i + 7],
-                cz = data[i + 9];
-            const determinant = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
-            if (!determinant) continue;
-            const a = ((bz - cz) * (px - cx) + (cx - bx) * (pz - cz)) / determinant;
-            const b = ((cz - az) * (px - cx) + (ax - cx) * (pz - cz)) / determinant;
-            const c = 1 - a - b;
-            if (a < -0.00001 || b < -0.00001 || c < -0.00001) continue;
-            const height = -(a * data[i + 2] + b * data[i + 5] + c * data[i + 8]) / 128 || 0;
-            if (data[i] === 1 && height <= -y + SWIM_DEPTH + 1) water = Math.max(water, height);
-            if (data[i] === 2 && height <= -y + 0.5) lava = Math.max(lava, height);
+        for (const data of [map.marioLiquids, map.marioAnimatedLiquids]) {
+            if (!data) continue;
+            for (let i = 0; i < data.length; i += 10) {
+                const ax = data[i + 1],
+                    az = data[i + 3],
+                    bx = data[i + 4],
+                    bz = data[i + 6],
+                    cx = data[i + 7],
+                    cz = data[i + 9];
+                const determinant = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+                if (!determinant) continue;
+                const a = ((bz - cz) * (px - cx) + (cx - bx) * (pz - cz)) / determinant;
+                const b = ((cz - az) * (px - cx) + (ax - cx) * (pz - cz)) / determinant;
+                const c = 1 - a - b;
+                const area = Math.abs(determinant);
+                const edgeA = Math.hypot(bx - cx, bz - cz),
+                    edgeB = Math.hypot(cx - ax, cz - az),
+                    edgeC = Math.hypot(ax - bx, az - bz);
+                if (a * area < -2 * edgeA || b * area < -2 * edgeB || c * area < -2 * edgeC)
+                    continue;
+                const height = -(a * data[i + 2] + b * data[i + 5] + c * data[i + 8]) / 128 || 0;
+                if (data[i] === 1 && height <= -y + SWIM_DEPTH + 1) water = Math.max(water, height);
+                if (data[i] === 2 && height <= -y + 0.5) lava = Math.max(lava, height);
+            }
         }
     }
     return { water, bottom: water - SWIM_DEPTH, lava };
+}
+
+/** A finite 4-map-unit seabed skirt covers rounding/contact gaps along liquid edges. */
+export function expandLiquidBed(points: number[][]): number[][] {
+    const area =
+        (points[1][0] - points[0][0]) * (points[2][2] - points[0][2]) -
+        (points[1][2] - points[0][2]) * (points[2][0] - points[0][0]);
+    const sign = Math.sign(area);
+    if (!sign) return points;
+    const edges = points.map((p, i) => {
+        const q = points[(i + 1) % 3],
+            dx = q[0] - p[0],
+            dz = q[2] - p[2],
+            length = Math.hypot(dx, dz);
+        const nx = (sign * dz) / length,
+            nz = (-sign * dx) / length;
+        return { nx, nz, c: nx * p[0] + nz * p[2] + 4 };
+    });
+    return points.map((p, i) => {
+        const a = edges[(i + 2) % 3],
+            b = edges[i],
+            det = a.nx * b.nz - b.nx * a.nz;
+        if (Math.abs(det) < 1e-8) return p;
+        const x = (a.c * b.nz - b.c * a.nz) / det,
+            z = (a.nx * b.c - b.nx * a.c) / det;
+        return [Math.round(x), p[1], Math.round(z)];
+    });
 }

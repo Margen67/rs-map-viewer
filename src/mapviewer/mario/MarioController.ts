@@ -3,11 +3,13 @@ import { clamp } from "../../util/MathUtil";
 import { Camera, ProjectionType } from "../Camera";
 import { InputManager, getAxisDeadzone } from "../InputManager";
 import { CollisionSquare, collectMarioSurfaces } from "./CollisionGeometry";
-import { LibSM64, createLibSM64, validateMarioRom } from "./LibSM64";
+import { LibSM64, createLibSM64 } from "./LibSM64";
 import { MarioAudio } from "./MarioAudio";
 import { MarioCombat, MarioNpcTarget } from "./MarioCombat";
 import { SWIM_DEPTH, sampleMarioEnvironment } from "./MarioEnvironment";
+import { MARIO_SONGS } from "./MarioMusic";
 import { MarioParticles } from "./MarioParticles";
+import { readMarioRom } from "./MarioRom";
 import { MARIO_SIZE_MULTIPLIER } from "./MarioScale";
 
 const STEP = 1000 / 30;
@@ -20,7 +22,26 @@ export class MarioController {
     readonly particles = new MarioParticles();
     readonly combat = new MarioCombat(this.particles);
     size = MARIO_SIZE_MULTIPLIER;
-    volume = 0.7;
+    volume = 0.5;
+    musicVolume = 0.3;
+    song: number = 3;
+    private songSelected = false;
+    chooseSong(id: number): void {
+        if (!MARIO_SONGS.some((s) => s[0] === id)) return;
+        this.songSelected = true;
+        this.song = id;
+        this.module?._rs64_song(id);
+        this.module?._rs64_music(Number(this.audio?.music ?? true));
+    }
+    cycleSong(direction: number): void {
+        const i = MARIO_SONGS.findIndex((s) => s[0] === this.song);
+        this.chooseSong(MARIO_SONGS[(i + direction + MARIO_SONGS.length) % MARIO_SONGS.length][0]);
+    }
+    setMusicVolume(value: number): void {
+        this.musicVolume = clamp(value, 0, 1);
+        this.module?._rs64_volumes(this.volume, this.musicVolume);
+    }
+
     speed = 1;
     showCollision = false;
     showMapCollision = true;
@@ -28,6 +49,7 @@ export class MarioController {
     collisionVertices = new Int32Array(0);
     collisionRevision = 0;
     private rom?: Uint8Array;
+    private romRequest?: AbortController;
     get hasRom(): boolean {
         return !!this.rom;
     }
@@ -55,11 +77,12 @@ export class MarioController {
                 -this.position[1] * this.unitsPerTile,
                 (this.position[2] - this.originZ) * this.unitsPerTile,
             );
+        this.capturePose(true);
     }
 
     setVolume(value: number): void {
         this.volume = clamp(value, 0, 1);
-        this.audio?.setVolume(this.volume);
+        this.module?._rs64_volumes(this.volume, this.musicVolume);
     }
     status = "Choose a US SM64 ROM to play as Mario.";
     loading = false;
@@ -69,6 +92,21 @@ export class MarioController {
     position = [0, 0, 0];
     private generation = 0;
     private accumulator = 0;
+    interpolation = true;
+    renderAlpha = 1;
+    posePositions?: Float32Array;
+    previousPosePositions?: Float32Array;
+    private renderPreviousPosition = [0, 0, 0];
+    private capturePose(reset = false): void {
+        const m = this.module;
+        if (!m) return;
+        const count = m._rs64_triangles() * 9;
+        if (!count) return;
+        this.previousPosePositions = reset ? undefined : this.posePositions;
+        const start = m._rs64_buffer(0) / 4;
+        this.posePositions = m.HEAPF32.slice(start, start + count);
+    }
+
     private collisionX = Infinity;
     private collisionZ = Infinity;
     private collisionMaps: CollisionSquare[] = [];
@@ -85,20 +123,20 @@ export class MarioController {
         return !!this.module;
     }
 
-    async start(file?: File): Promise<void> {
+    async start(file?: File | string): Promise<void> {
         this.stop();
         const generation = this.generation;
         this.loading = true;
+        this.romRequest = new AbortController();
         this.status = "Loading Mario…";
         let module: LibSM64 | undefined;
         let initialized = false;
         try {
             this.audio = new MarioAudio(() => this.input.isGameplayFocused());
-            this.audio.setVolume(this.volume);
+            this.audio.setVolume(1);
             // Nothing from the file is uploaded, persisted, or included in the build.
-            const rom = file ? new Uint8Array(await file.arrayBuffer()) : this.rom;
+            const rom = file ? await readMarioRom(file, this.romRequest.signal) : this.rom;
             if (!rom) throw new Error("Choose a US SM64 ROM first.");
-            if (file) await validateMarioRom(rom);
             if (generation !== this.generation) return;
             this.rom = rom;
             module = await createLibSM64();
@@ -117,8 +155,10 @@ export class MarioController {
             }
             this.module = module;
             module._rs64_speed(this.speed);
-            const songs = [3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 17, 19, 20, 22, 25, 33];
-            module._rs64_song(songs[Math.floor(Math.random() * songs.length)]);
+            if (!this.songSelected)
+                this.song = MARIO_SONGS[Math.floor(Math.random() * MARIO_SONGS.length)][0];
+            module._rs64_song(this.song);
+            module._rs64_volumes(this.volume, this.musicVolume);
             module._rs64_music(1);
             this.previousProjection = this.camera.projectionType;
             this.camera.setProjectionType(ProjectionType.PERSPECTIVE);
@@ -145,6 +185,8 @@ export class MarioController {
 
     stop(): void {
         this.generation++;
+        this.romRequest?.abort();
+        this.romRequest = undefined;
         this.audio?.dispose();
         this.audio = undefined;
         this.module?._rs64_terminate();
@@ -156,6 +198,7 @@ export class MarioController {
         this.loading = false;
         this.spawned = false;
         this.accumulator = 0;
+        this.posePositions = this.previousPosePositions = undefined;
         this.collisionX = this.collisionZ = Infinity;
         this.collisionVertices = new Int32Array(0);
         this.collisionRevision++;
@@ -191,6 +234,7 @@ export class MarioController {
         maps: Iterable<CollisionSquare>,
         targets: MarioNpcTarget[] = [],
     ): void {
+        this.renderAlpha = 1;
         const SCALE = this.unitsPerTile;
         const m = this.module;
         if (!m) return;
@@ -250,6 +294,7 @@ export class MarioController {
                     -this.position[1] * SCALE,
                     (z - this.originZ) * SCALE,
                 );
+            if (rebase) this.capturePose(true);
             this.collisionVertices = vertices;
             this.collisionRevision++;
             this.collisionX = x;
@@ -273,6 +318,8 @@ export class MarioController {
             }
             this.spawned = true;
             this.position = [x, -spawnY / SCALE, z];
+            this.renderPreviousPosition = [...this.position];
+            this.posePositions = this.previousPosePositions = undefined;
             this.spawnHeight = floor + 1000;
             this.camera.pitch = -160;
         }
@@ -318,7 +365,28 @@ export class MarioController {
             const dx = (stickX * Math.cos(yaw) - stickY * Math.sin(yaw)) / Math.max(1, moveLength);
             const dz = (-stickX * Math.sin(yaw) - stickY * Math.cos(yaw)) / Math.max(1, moveLength);
             if (environment.water > -10000) this.lastWaterPosition = [...previous];
-            if (swimming && moveLength > 0.15) {
+            if (
+                swimming &&
+                environment.water <= -10000 &&
+                this.waterLevel > -10000 &&
+                this.lastWaterPosition
+            ) {
+                previous[0] = this.lastWaterPosition[0];
+                previous[2] = this.lastWaterPosition[2];
+                m._rs64_move(
+                    (previous[0] - this.originX) * SCALE,
+                    -previous[1] * SCALE,
+                    (previous[2] - this.originZ) * SCALE,
+                );
+                environment.water = this.waterLevel;
+                environment.bottom = this.waterLevel - SWIM_DEPTH;
+            }
+            const velocityPointer = m._rs64_velocity() / 4;
+            const horizontalSpeed = Math.hypot(
+                m.HEAPF32[velocityPointer],
+                m.HEAPF32[velocityPointer + 2],
+            );
+            if (swimming && (moveLength > 0.15 || horizontalSpeed > 1)) {
                 const water = environment.water > -10000 ? environment.water : this.waterLevel;
                 if (water > -10000) {
                     const velocity = m._rs64_velocity() / 4;
@@ -328,8 +396,12 @@ export class MarioController {
                             SCALE +
                             0.3,
                     );
-                    const targetX = previous[0] + dx * reach,
-                        targetZ = previous[2] + dz * reach;
+                    const moveX =
+                        moveLength > 0.15 ? dx : m.HEAPF32[velocityPointer] / horizontalSpeed;
+                    const moveZ =
+                        moveLength > 0.15 ? dz : m.HEAPF32[velocityPointer + 2] / horizontalSpeed;
+                    const targetX = previous[0] + moveX * reach,
+                        targetZ = previous[2] + moveZ * reach;
                     const target = sampleMarioEnvironment(nearby, targetX, previous[1], targetZ);
                     if (target.water <= -10000 && target.lava <= -10000) {
                         // Stay on the wet side of the bank while initiating a real native jump.
@@ -384,6 +456,8 @@ export class MarioController {
                 SCALE,
                 this.size,
             );
+            this.renderPreviousPosition = previous;
+            this.capturePose();
             this.accumulator -= STEP;
         }
         const pointer = m._rs64_position() / 4;
@@ -401,12 +475,18 @@ export class MarioController {
             this.respawn();
             return;
         }
+        this.renderAlpha = this.interpolation ? this.accumulator / STEP : 1;
+        const renderPosition = this.position.map(
+            (value, i) =>
+                this.renderPreviousPosition[i] +
+                (value - this.renderPreviousPosition[i]) * this.renderAlpha,
+        );
         // The same yaw convention as Camera.move: view-forward is (+sin yaw, +cos yaw).
         const distance = 4;
         const pitch = this.camera.pitch * RS_TO_RADIANS;
-        this.camera.pos[0] = this.position[0] - Math.sin(yaw) * Math.cos(pitch) * distance;
-        this.camera.pos[1] = this.position[1] - 0.5 * this.size + Math.sin(pitch) * distance;
-        this.camera.pos[2] = this.position[2] - Math.cos(yaw) * Math.cos(pitch) * distance;
+        this.camera.pos[0] = renderPosition[0] - Math.sin(yaw) * Math.cos(pitch) * distance;
+        this.camera.pos[1] = renderPosition[1] - 0.5 * this.size + Math.sin(pitch) * distance;
+        this.camera.pos[2] = renderPosition[2] - Math.cos(yaw) * Math.cos(pitch) * distance;
         this.camera.updated = this.camera.updatedPosition = true;
         this.audio?.play(m);
         this.status = pad

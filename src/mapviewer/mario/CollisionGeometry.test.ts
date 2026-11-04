@@ -140,12 +140,12 @@ test("visible upper-plane bridges remain solid when the selected map level is ze
     expect(buildMarioCollision({ levels: 2, tiles } as any, 0, 0, [])).toHaveLength(0);
 });
 
-test("non-blocking scenery contributes no collision triangles", () => {
+test("non-blocking walls contribute no collision triangles", () => {
     const scene = { levels: 0, tiles: [] } as any;
     const model = {
         model: {
             verticesX: [0, 128, 0],
-            verticesY: [0, 0, 0],
+            verticesY: [0, -128, 0],
             verticesZ: [0, 0, 128],
             faceCount: 1,
             indices1: [0],
@@ -165,7 +165,7 @@ test("non-blocking scenery contributes no collision triangles", () => {
     expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
 });
 
-test("tiny blocking geometry collides, but fully transparent signed-alpha faces do not", () => {
+test("tiny clutter is omitted, thin walkable surfaces remain, and invisible faces are omitted", () => {
     const scene = { levels: 0, tiles: [] } as any;
     const model = {
         model: {
@@ -186,9 +186,40 @@ test("tiny blocking geometry collides, but fully transparent signed-alpha faces 
         contourGround: 0,
         marioSolid: true,
     } as any;
+    expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(0);
+    model.marioWalkable = true;
     expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
     model.model.faceAlphas[0] = -15; // 241: faint but visible
     expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(9);
     model.model.faceAlphas[0] = -1;
     expect(buildMarioCollision(scene, 0, 0, [model])).toHaveLength(0);
+});
+
+test("non-blocking paving supports feet and the wilderness's untextured gold surface is lava", () => {
+    const scene = { levels: 0, tiles: [] } as any;
+    const model = {
+        model: {
+            verticesX: [0, 128, 0],
+            verticesY: [0, 0, 0],
+            verticesZ: [0, 0, 128],
+            faceCount: 1,
+            indices1: [0],
+            indices2: [1],
+            indices3: [2],
+            faceColors3: [0],
+            faceColors: [9164],
+        },
+        sceneX: 0,
+        sceneZ: 0,
+        sceneHeight: 0,
+        heightOffset: 0,
+        contourGround: 0,
+        marioSolid: false,
+    } as any;
+    const liquids: number[] = [];
+    expect(buildMarioCollision(scene, 0, 0, [model], liquids, true, 3200, 3584)).toHaveLength(9);
+    expect(liquids[0]).toBe(2);
+    const other: number[] = [];
+    buildMarioCollision(scene, 0, 0, [model], other, true, 3100, 3450);
+    expect(other).toHaveLength(0);
 });

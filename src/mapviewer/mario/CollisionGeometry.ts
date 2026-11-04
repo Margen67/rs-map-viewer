@@ -1,6 +1,8 @@
 import { Scene } from "../../rs/scene/Scene";
 import { ContourGroundType, SceneModel } from "../webgl/buffer/SceneBuffer";
-import { SWIM_DEPTH, liquidKind } from "./MarioEnvironment";
+import { broadWalkable, tinyScenery } from "./BlockingFlags";
+import { withSupportCaps } from "./CollisionSupport";
+import { SWIM_DEPTH, expandLiquidBed, liquidKind } from "./MarioEnvironment";
 import { MARIO_UNITS_PER_TILE } from "./MarioScale";
 
 /** Map-local RuneScape coordinates, 128 units per tile, Y pointing down. */
@@ -11,6 +13,8 @@ export function buildMarioCollision(
     models: SceneModel[],
     liquids: number[] = [],
     classifyLiquids = true,
+    worldBaseX = 0,
+    worldBaseZ = 0,
 ): Int32Array {
     const vertices: number[] = [];
     const seen = new Set<string>();
@@ -39,13 +43,14 @@ export function buildMarioCollision(
                 if (!sceneTile || sceneTile.minLevel > maxLevel) continue;
                 const tile = sceneTile.tileModel;
                 for (const face of tile?.faces ?? []) {
-                    const [a, b, c] = face.vertices.map((v) => [v.x - offset, v.y, v.z - offset]);
+                    let [a, b, c] = face.vertices.map((v) => [v.x - offset, v.y, v.z - offset]);
                     const kind = classifyLiquids ? liquidKind(face.vertices[0].textureId) : 0;
                     if (kind) liquids.push(kind, ...a, ...b, ...c);
                     if (kind === 1) {
                         a[1] += SWIM_DEPTH * 128;
                         b[1] += SWIM_DEPTH * 128;
                         c[1] += SWIM_DEPTH * 128;
+                        [a, b, c] = expandLiquidBed([a, b, c]);
                     }
                     const normalY = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
                     if (normalY > 0) add(c, b, a);
@@ -55,7 +60,9 @@ export function buildMarioCollision(
         }
     }
     for (const entry of models) {
-        if (entry.marioSolid === false) continue;
+        const walkable = entry.marioWalkable || broadWalkable(entry.model);
+        if ((entry.marioSolid === false && !walkable) || tinyScenery(entry.model, walkable))
+            continue;
         // Scene models are already visibility-filtered, including upper-plane bridges.
         const model = entry.model;
         const ys = model.contourVerticesY ?? model.verticesY;
@@ -88,10 +95,28 @@ export function buildMarioCollision(
         for (let i = 0; i < model.faceCount; i++) {
             if (model.faceColors3[i] === -2 || ((model.faceAlphas?.[i] ?? 0) & 255) === 255)
                 continue;
-            add(vertex(model.indices1[i]), vertex(model.indices2[i]), vertex(model.indices3[i]));
+            const a = vertex(model.indices1[i]),
+                b = vertex(model.indices2[i]),
+                c = vertex(model.indices3[i]);
+            const ny = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+            const texture = model.faceTextures?.[i] ?? -1;
+            const color = model.faceColors?.[i] ?? model.faceColors1?.[i] ?? 0;
+            const wilderness =
+                worldBaseX + entry.sceneX / 128 >= 2944 &&
+                worldBaseX + entry.sceneX / 128 <= 3392 &&
+                worldBaseZ + entry.sceneZ / 128 >= 3520;
+            const lava =
+                walkable &&
+                (texture === 31 || texture === 56 || (wilderness && color >> 7 === 9164 >> 7));
+            if (lava && Math.abs(ny) > 1) liquids.push(2, ...a, ...b, ...c);
+            if (entry.marioSolid === false) {
+                if (!ny) continue;
+                if (ny > 0) add(c, b, a);
+                else add(a, b, c);
+            } else add(a, b, c);
         }
     }
-    return new Int32Array(vertices);
+    return withSupportCaps(new Int32Array(vertices));
 }
 
 export interface CollisionSquare {
@@ -102,6 +127,7 @@ export interface CollisionSquare {
     marioAnimatedCollision?: Int32Array;
     marioCollisionVersion?: number;
     marioLiquids?: Int32Array;
+    marioAnimatedLiquids?: Int32Array;
 }
 
 /** Index triangle offsets by 8×8-tile cells in the worker, including overlapping triangles. */

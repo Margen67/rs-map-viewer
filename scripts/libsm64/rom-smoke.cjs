@@ -296,8 +296,76 @@ const createLibSM64 = require("../../public/libsm64/libsm64.js");
         assert.equal(m._rs64_triangles(), triangles, "paused resize retains the last render pose");
         m._rs64_stomp(0, 180, 0);
         assert.equal(m.HEAPF32[m._rs64_velocity() / 4 + 1], 30, "stomp bounce");
+        function audioPeak(ticks) {
+            let peak = 0;
+            for (let i = 0; i < ticks; i++) {
+                const frames = m._rs64_audio_tick(0),
+                    p = m._rs64_audio_buffer() / 2;
+                for (const sample of m.HEAP16.subarray(p, p + frames * 2))
+                    peak = Math.max(peak, Math.abs(sample));
+            }
+            return peak;
+        }
+        m._rs64_volumes(0, 0);
+        audioPeak(120);
+        assert.ok(audioPeak(3) <= 2, "both native mixer gains mute their own sources");
+        m._rs64_song(3);
+        m._rs64_music(1);
+        m._rs64_volumes(0, 1);
+        assert.ok(audioPeak(30) > 0, "music remains audible with effects muted");
+        m._rs64_volumes(1, 0);
+        audioPeak(120);
+        m._rs64_enemy_sound();
+        assert.ok(audioPeak(20) > 0, "effects remain audible with music muted");
+        m._rs64_music(0);
+        m._rs64_volumes(0.5, 0.3);
+        surfaces([
+            ...floor,
+            -1000,
+            300,
+            -1000,
+            1000,
+            300,
+            -1000,
+            1000,
+            300,
+            1000,
+            -1000,
+            300,
+            -1000,
+            1000,
+            300,
+            1000,
+            -1000,
+            300,
+            1000,
+            -1000,
+            301,
+            -1000,
+            1000,
+            301,
+            1000,
+            1000,
+            301,
+            -1000,
+            -1000,
+            301,
+            -1000,
+            -1000,
+            301,
+            1000,
+            1000,
+            301,
+            1000,
+        ]);
+        assert.ok(m._rs64_spawn(0, 400, 0) >= 0);
+        for (let i = 0; i < 90; i++) tick();
+        assert.ok(
+            Math.abs(position()[1] - 301) < 1,
+            "upward support above a ceiling prevents roof leakage",
+        );
         console.log(
-            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed, shore jumps, movement speed, and lava burn passed.",
+            "ROM checks passed: 20 effect frames, slope grip, two-sided slanted walls, attacks, dust, audio, pose retention, stomp bounce, swimming, finite seabed, shore jumps, movement speed, separate mixer gains, support caps, and lava burn passed.",
         );
     } finally {
         m._rs64_terminate();

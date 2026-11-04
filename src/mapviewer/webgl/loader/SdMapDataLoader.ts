@@ -11,7 +11,12 @@ import { LocEntity } from "../../../rs/scene/entity/LocEntity";
 import { TextureLoader } from "../../../rs/texture/TextureLoader";
 import { NpcSpawn, getMapNpcSpawns } from "../../data/npc/NpcSpawn";
 import { ObjSpawn, getMapObjSpawns } from "../../data/obj/ObjSpawn";
-import { blocksMario } from "../../mario/BlockingFlags";
+import {
+    blocksMario,
+    broadWalkable,
+    keepsWalkableCollision,
+    tinyScenery,
+} from "../../mario/BlockingFlags";
 import { buildMarioCollision, indexMarioCollision } from "../../mario/CollisionGeometry";
 import { createMarioDoor, isMarioDoor } from "../../mario/MarioDoors";
 import { loadMinimapBlob } from "../../worker/MinimapData";
@@ -309,12 +314,11 @@ function addLocAnimationFrames(
     const frames = new Array<DrawRange>(frameCount);
     const framesAlpha = new Array<DrawRange>(frameCount);
     let alphaFrameCount = 0;
-    const marioCollisionFrames: Int32Array[] | undefined = blocksMario(
-        entity.type,
-        locType.clipType,
-    )
-        ? []
-        : undefined;
+    const marioCollisionFrames: Int32Array[] | undefined =
+        blocksMario(entity.type, locType.clipType) ||
+        keepsWalkableCollision(entity.type, locType.name)
+            ? []
+            : undefined;
     for (let i = 0; i < frameCount; i++) {
         const model = locModelLoader.getModelAnimated(
             locType,
@@ -325,7 +329,13 @@ function addLocAnimationFrames(
         );
         if (marioCollisionFrames) {
             const collision: number[] = [];
-            if (model)
+            if (
+                model &&
+                !tinyScenery(
+                    model,
+                    keepsWalkableCollision(entity.type, locType.name) || broadWalkable(model),
+                )
+            )
                 for (let f = 0; f < model.faceCount; f++) {
                     if (model.faceColors3[f] === -2 || ((model.faceAlphas?.[f] ?? 0) & 255) === 255)
                         continue;
@@ -477,6 +487,7 @@ function addLocEntities(
                 lowDetail,
                 forceMerge: locType.contourGroundType > 1,
                 marioSolid: blocksMario(type, locType.clipType),
+                marioWalkable: keepsWalkableCollision(type, locType.name),
                 interactId: locType.id,
             });
         }
@@ -670,6 +681,8 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             sceneModels,
             liquids,
             state.cache.info.game === "oldschool",
+            mapX * 64,
+            mapY * 64,
         );
         const marioLiquids = new Int32Array(liquids);
         const marioCollisionChunks = indexMarioCollision(marioCollision);

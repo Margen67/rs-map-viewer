@@ -26,6 +26,9 @@ function setup() {
         _rs64_floor: () => 0,
         _rs64_spawn: () => 0,
         _rs64_tick: tick,
+        _rs64_triangles: () => 0,
+        _rs64_buffer: () => 0,
+        _rs64_volumes: jest.fn(),
         _rs64_speed: jest.fn(),
         _rs64_environment: jest.fn(),
         _rs64_position: () => 64,
@@ -232,5 +235,64 @@ test("swimming into dry terrain requests a shore jump toward movement without sn
     expect(jump.mock.calls[0][0]).toBeCloseTo(10 * controller.unitsPerTile);
     expect(jump.mock.calls[0][1]).toBeCloseTo(10.65 * controller.unitsPerTile);
     expect(m._rs64_move).not.toHaveBeenCalled();
+    input.cleanUp();
+});
+
+test("interpolation uses the same sub-tick position for the mesh and follow camera, and can be disabled", () => {
+    const { input, controller, tick, maps } = setup();
+    const m = controller.module!;
+    m._rs64_triangles = () => 1;
+    m._rs64_buffer = () => 128;
+    tick.mockImplementation(() => {
+        m.HEAPF32[16] += 10;
+        m.HEAPF32[32] = m.HEAPF32[16];
+    });
+    controller.update(34, maps);
+    controller.update(34, maps);
+    expect(controller.renderAlpha).toBeGreaterThan(0);
+    expect(controller.renderAlpha).toBeLessThan(1);
+    const blended =
+        controller.previousPosePositions![0] +
+        (controller.posePositions![0] - controller.previousPosePositions![0]) *
+            controller.renderAlpha;
+    expect(controller.camera.pos[0]).toBeCloseTo(blended / controller.unitsPerTile);
+    const ticks = tick.mock.calls.length;
+    controller.interpolation = false;
+    controller.update(1, maps);
+    expect(controller.renderAlpha).toBe(1);
+    expect(tick).toHaveBeenCalledTimes(ticks);
+    expect(controller.camera.pos[0]).toBeCloseTo(controller.position[0]);
+    input.cleanUp();
+});
+
+test("a swimmer coasting past a water edge stays on the finite wet-side floor even without input", () => {
+    const { input, controller, maps } = setup();
+    const m = controller.module!;
+    m._rs64_action = () => 0x2000;
+    m.HEAPF32[17] = -80;
+    m._rs64_move = jest.fn((x, y, z) => {
+        m.HEAPF32.set([x, y, z], 16);
+    });
+    const map = {
+        ...maps[0],
+        marioLiquids: new Int32Array([
+            1,
+            9 * 128,
+            0,
+            9 * 128,
+            11 * 128,
+            0,
+            11 * 128,
+            11 * 128,
+            0,
+            9 * 128,
+        ]),
+    };
+    controller.update(34, [map]);
+    m.HEAPF32[16] = 12 * controller.unitsPerTile;
+    controller.update(34, [map]);
+    expect(m._rs64_move).toHaveBeenCalled();
+    expect(controller.position[0]).toBeCloseTo(10);
+    expect(controller.position[1]).toBeCloseTo(80 / controller.unitsPerTile);
     input.cleanUp();
 });
