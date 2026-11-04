@@ -87,6 +87,7 @@ export function createSceneModel(
         forceMerge: locType.contourGroundType > 1,
         marioSolid: blocksMario(type, locType.clipType),
         marioWalkable: keepsWalkableCollision(type, locType.name),
+        marioGroundDecoration: type === 22,
 
         sceneX,
         sceneZ,

@@ -149,6 +149,7 @@ test("resizing a paused fresh spawn uses the floor position rather than the load
 
 test("movement speed leaves the 30Hz clock unchanged and updates native movement", () => {
     const { input, controller, tick, maps } = setup();
+    expect(controller.speed).toBe(0.8);
     controller.setSpeed(2);
     controller.update(100, maps);
     expect(tick).toHaveBeenCalledTimes(2);

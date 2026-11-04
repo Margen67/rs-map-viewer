@@ -62,7 +62,8 @@ export function buildMarioCollision(
     // Terrain stays exactly on its rendered triangles; never add raised slope platforms.
     const terrain = vertices.splice(0);
     for (const entry of models) {
-        const walkable = entry.marioWalkable || broadWalkable(entry.model);
+        const walkable =
+            entry.marioWalkable || (!entry.marioGroundDecoration && broadWalkable(entry.model));
         if ((entry.marioSolid === false && !walkable) || tinyScenery(entry.model, walkable))
             continue;
         // Scene models are already visibility-filtered, including upper-plane bridges.

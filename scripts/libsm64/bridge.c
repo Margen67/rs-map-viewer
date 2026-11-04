@@ -18,6 +18,7 @@ static float uvs[SM64_GEO_MAX_TRIANGLES * 6];
 static struct SM64MarioGeometryBuffers geometry = {positions, normals, colors, uvs, 0};
 static struct SM64MarioState state;
 static int32_t mario = -1;
+extern void rs64_collision_index_reset(void);
 static int song = 3;
 static float effects_volume = .5f, music_volume = .3f;
 void rs64_volumes(float effects, float music) {effects_volume=fminf(1,fmaxf(0,effects));music_volume=fminf(1,fmaxf(0,music));}
@@ -104,6 +105,7 @@ void rs64_environment(float water, float bottom, float lava) {
 }
 
 void rs64_terminate(void) {
+    rs64_collision_index_reset();
     if (mario >= 0) sm64_mario_delete(mario);
     mario = -1;
     geometry.numTrianglesUsed = 0;
@@ -114,6 +116,7 @@ void rs64_terminate(void) {
 }
 
 int rs64_surfaces(const int32_t *vertices, uint32_t count) {
+    rs64_collision_index_reset();
     burning_floor = NULL;
     struct SM64Surface *surfaces = calloc(count, sizeof(*surfaces));
     if (count && !surfaces) return 0;

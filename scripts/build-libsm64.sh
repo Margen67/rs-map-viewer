@@ -38,7 +38,7 @@ for dir in src src/decomp src/decomp/engine src/decomp/include/PR src/decomp/gam
 done
 mkdir -p public/libsm64
 emcc "${sources[@]}" scripts/libsm64/bridge.c \
-    -I "$source_dir/src" -I "$source_dir/src/decomp/include" \
+    -I "$source_dir/src" -I "$source_dir/src/decomp/include" -I "$project_dir/scripts/libsm64" \
     -fno-strict-aliasing -DGBI_FLOATS -DVERSION_US -DNO_SEGMENTED_MEMORY \
     -Wno-incompatible-pointer-types -O2 -lm --no-entry \
     -sMODULARIZE=1 -sEXPORT_NAME=createLibSM64 -sENVIRONMENT=web,node \

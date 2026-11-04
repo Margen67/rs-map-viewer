@@ -248,3 +248,29 @@ test("steep terrain exports only its rendered slope, with no flattened support a
             .sort((a, b) => a - b),
     ).toEqual([-256, 0, 0]);
 });
+
+test("wide grass decorations are excluded instead of being promoted to paving support", () => {
+    const scene = { levels: 0, tiles: [] } as any;
+    const entry = {
+        model: {
+            verticesX: [0, 128, 0],
+            verticesY: [0, -44, 0],
+            verticesZ: [0, 0, 132],
+            faceCount: 1,
+            indices1: [0],
+            indices2: [1],
+            indices3: [2],
+            faceColors3: [0],
+        },
+        sceneX: 0,
+        sceneZ: 0,
+        sceneHeight: 0,
+        heightOffset: 0,
+        contourGround: 0,
+        marioSolid: false,
+        marioGroundDecoration: true,
+    } as any;
+    expect(buildMarioCollision(scene, 0, 0, [entry])).toHaveLength(0);
+    entry.marioGroundDecoration = false;
+    expect(buildMarioCollision(scene, 0, 0, [entry]).length).toBeGreaterThan(0);
+});

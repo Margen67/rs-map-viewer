@@ -60,7 +60,7 @@ or cycle tracks; a manually chosen song is retained when re-entering Mario mode.
 
 The **Mario size** slider ranges from 0.5× to 3× (default 1.9×), updating the mesh,
 collision scale, and camera target together. **Mario speed** ranges from 0.25×
-to 3× and scales horizontal movement speed and acceleration on the ground, in the
+to 3× (default 0.8×) and scales horizontal movement speed and acceleration on the ground, in the
 air, and while swimming. Physics stays at 30 Hz; gravity, jump height, and action
 timers keep their normal timing. Separate **Sound effects** and **Music volume**
 sliders default to 50% and 30%; mute silences both without changing their levels.
@@ -96,7 +96,9 @@ reloading the map. RuneScape death animations and effects are not used.
 Terrain, static geometry, and solid animated scenery provide collision. Animated
 colliders follow the rendered frame and terrain contour, and Mario shares the
 map's depth buffer. Static and animated objects follow the scene's player-blocking
-flags, without collision generated from pathfinding barriers. Roughly 1/8-tile
+flags, including the floor-decoration rule (only clip type 1 blocks, so default
+grass decorations do not collide), without collision generated from pathfinding
+barriers. Roughly 1/8-tile
 high clutter is omitted, including low grass, debris, pebbles and lava bubbles;
 roofs, broad paving and genuinely thin walkable platforms retain support.
 Terrain uses the original rendered triangles without raised support caps. Scenery
@@ -104,6 +106,8 @@ wall tops and roof undersides retain bounded support; sloped faces are never
 flattened into platforms. Non-blocking
 paving provides foot support without adding side walls.
 Only visible mesh faces collide; steep surfaces and scenery have finite bounds.
+Native collision queries use a spatial index of the streamed mesh, preserving
+triangle tests and contact order while avoiding full-mesh scans in dense areas.
 Hidden NPCs do not create contact blockers. Vanilla OSRS water textures provide
 native swimming with a finite seabed four tiles below the rendered surface, a
 small overlap at tile edges, and wet-side recovery to prevent edge fall-through. Mario

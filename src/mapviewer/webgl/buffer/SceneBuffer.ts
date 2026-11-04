@@ -42,6 +42,7 @@ export type SceneModel = {
     forceMerge: boolean;
     marioSolid?: boolean;
     marioWalkable?: boolean;
+    marioGroundDecoration?: boolean;
 } & ModelInfo;
 
 export type ModelMergeGroup = {

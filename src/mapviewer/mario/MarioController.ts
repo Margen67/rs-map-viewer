@@ -42,7 +42,7 @@ export class MarioController {
         this.module?._rs64_volumes(this.volume, this.musicVolume);
     }
 
-    speed = 1;
+    speed = 0.8;
     showCollision = false;
     showMapCollision = true;
     collisionThroughScenery = true;

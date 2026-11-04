@@ -7,6 +7,8 @@ text = source.read_text()
 include = '#include "../game/object_stuff.h"'
 assert text.count(include) == 1
 text = text.replace(include, include + """
+
+#include "collision-index.h"
 /* Stable per-contact normals for the back side of imported thin walls. */
 static struct SM64SurfaceCollisionData viewer_wall_contacts[128];
 static uint32_t viewer_wall_contact_cursor = 0;
@@ -75,4 +77,19 @@ wall = wall.replace(old, """struct SM64SurfaceCollisionData *contact = &viewer_w
                 contact->originOffset *= -1.0f;
             }
             data->walls[data->numWalls++] = contact;""")
-source.with_name(".viewer-surface-collision.c").write_text(head + wall)
+text = head + wall
+loop = """uint32_t groupCount = loaded_surface_iter_group_count();
+    for( int i = 0; i < groupCount; ++i ) {
+    uint32_t surfCount = loaded_surface_iter_group_size( i );
+    for( int j = 0; j < surfCount; ++j ) {
+        surf = loaded_surface_iter_get_at_index( i, j );"""
+# Retain both scopes so the original loop bodies and early-continue semantics stay intact.
+assert text.count(loop) == 3
+for function, radius in [("find_ceil_from_list", "0"), ("find_floor_from_list", "0"), ("find_wall_collisions_from_list", "radius")]:
+    start = text.index(function)
+    at = text.index(loop, start)
+    replacement = f"""for (int queryOnce = 0; queryOnce < 1; queryOnce++) {{
+    struct ViewerSurfaceQuery query = viewer_surface_query(x, z, {radius}, {"data" if radius == "radius" else "NULL"});
+    while ((surf = viewer_surface_next(&query)) != NULL) {{"""
+    text = text[:at] + text[at:].replace(loop, replacement, 1)
+source.with_name(".viewer-surface-collision.c").write_text(text)

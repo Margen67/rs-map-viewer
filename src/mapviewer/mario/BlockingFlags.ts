@@ -1,6 +1,8 @@
 import { LocModelType } from "../../rs/config/loctype/LocModelType";
 
-export function blocksMario(_type: LocModelType, clipType: number): boolean {
+export function blocksMario(type: LocModelType, clipType: number): boolean {
+    // SceneBuilder only blocks floor decorations for clipType 1; 2 is the default decoration value.
+    if (type === LocModelType.FLOOR_DECORATION) return clipType === 1;
     return clipType !== 0;
 }
 export function keepsWalkableCollision(type: LocModelType, name = ""): boolean {
